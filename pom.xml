@@ -41,19 +41,19 @@
 			<scope>test</scope>
 		</dependency>
 		<dependency>
+			<groupId>org.apache.cassandra</groupId>
+			<artifactId>cassandra-all</artifactId>
+			<exclusions>
+				<exclusion>
+					<groupId>org.slf4j</groupId>
+					<artifactId>log4j-over-slf4j</artifactId>
+				</exclusion>
+			</exclusions>
+		</dependency>
+		<dependency>
 			<groupId>com.datastax.cassandra</groupId>
 			<artifactId>cassandra-driver-core</artifactId>
 		</dependency>
-		<dependency>
-			<groupId>com.datastax.cassandra</groupId>
-			<artifactId>cassandra-all</artifactId>
-		</dependency>
-		<dependency>
-    <groupId>org.cassandraunit</groupId>
-    <artifactId>cassandra-unit</artifactId>
-     <version>3.0.0.0</version> 
-        <scope>test</scope>
-</dependency>
 	</dependencies>
 	<build>
 		<plugins>
@@ -111,10 +111,9 @@
 				<version>3.1.2</version>
 			</dependency>
 			<dependency>
-				<groupId>com.datastax.cassandra</groupId>
+				<groupId>org.apache.cassandra</groupId>
 				<artifactId>cassandra-all</artifactId>
 				<version>3.9</version>
-				<scope>test</scope>
 			</dependency>
 			<dependency>
 				<groupId>junit</groupId>
