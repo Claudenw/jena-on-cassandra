@@ -20,6 +20,7 @@ package org.apache.jena.cassandra.graph;
 
 import java.util.function.Function;
 
+import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.jena.graph.Capabilities;
@@ -73,6 +74,14 @@ public class GraphCassandra extends GraphBase {
 	 * @param connection The cassandra connection.
 	 */
 	public GraphCassandra(Node graph, String keyspace, CassandraConnection connection) {
+		if (connection == null)
+		{
+			throw new IllegalArgumentException( "Connection may not be null");
+		}
+		if (StringUtils.isBlank(keyspace))
+		{
+			throw new IllegalArgumentException( "Keyspace may not be null");
+		}
 		this.graph = graph == null ? Node.ANY
 				: (Quad.isUnionGraph(graph) ? Node.ANY : graph);
 		this.connection = connection;
