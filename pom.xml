@@ -34,6 +34,7 @@
 			<groupId>org.apache.jena</groupId>
 			<artifactId>apache-jena-libs</artifactId>
 			<type>pom</type>
+			<version>${jena-version}</version>
 		</dependency>
 		<dependency>
 			<groupId>junit</groupId>
@@ -53,6 +54,24 @@
 		<dependency>
 			<groupId>com.datastax.cassandra</groupId>
 			<artifactId>cassandra-driver-core</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.xenei</groupId>
+			<artifactId>junit-contracts</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.apache.jena</groupId>
+			<artifactId>jena-core</artifactId>
+			<version>${jena-version}</version>
+			<scope>test</scope>
+			<type>test-jar</type>
+		</dependency>
+		<dependency>
+			<groupId>org.apache.jena</groupId>
+			<artifactId>jena-core</artifactId>
+			<version>${jena-version}</version>
+			<scope>test</scope>
+			<type>jar</type>
 		</dependency>
 	</dependencies>
 	<build>
@@ -100,12 +119,6 @@
 	<dependencyManagement>
 		<dependencies>
 			<dependency>
-				<groupId>org.apache.jena</groupId>
-				<artifactId>apache-jena-libs</artifactId>
-				<version>3.1.0</version>
-				<type>pom</type>
-			</dependency>
-			<dependency>
 				<groupId>com.datastax.cassandra</groupId>
 				<artifactId>cassandra-driver-core</artifactId>
 				<version>3.1.2</version>
@@ -123,4 +136,7 @@
 			</dependency>
 		</dependencies>
 	</dependencyManagement>
+	<properties>
+		<jena-version>3.2.0-SNAPSHOT</jena-version>
+	</properties>
 </project>

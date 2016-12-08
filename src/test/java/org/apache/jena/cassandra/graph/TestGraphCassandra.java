@@ -18,8 +18,6 @@
 
 package org.apache.jena.cassandra.graph;
 
-import static org.junit.Assert.*;
-
 import java.io.File;
 import java.io.IOException;
 import java.net.URL;
@@ -28,30 +26,27 @@ import org.apache.cassandra.contrib.utils.service.CassandraServiceDataCleaner;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.service.EmbeddedCassandraService;
-import org.apache.cassandra.thrift.Cassandra;
-import org.apache.cassandra.thrift.ColumnOrSuperColumn;
-import org.apache.cassandra.thrift.ColumnPath;
-import org.apache.cassandra.thrift.ConsistencyLevel;
 import org.apache.jena.ext.com.google.common.io.Files;
-import org.apache.jena.graph.Node;
+import org.apache.jena.graph.Graph;
 import org.apache.jena.graph.NodeFactory;
 import org.apache.jena.graph.Triple;
-import org.apache.jena.util.iterator.ExtendedIterator;
-import org.apache.jena.vocabulary.RDF;
-import org.apache.jena.vocabulary.RDFS;
-import org.apache.thrift.protocol.TBinaryProtocol;
-import org.apache.thrift.protocol.TProtocol;
-import org.apache.thrift.transport.TSocket;
-import org.apache.thrift.transport.TTransport;
+import org.apache.jena.testing_framework.AbstractGraphProducer;
 import org.apache.thrift.transport.TTransportException;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
-import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.xenei.junit.contract.ContractImpl;
+import org.xenei.junit.contract.ContractSuite;
+import org.xenei.junit.contract.IProducer;
+import org.xenei.junit.contract.Contract.Inject;
 
+@RunWith(ContractSuite.class)
+@ContractImpl(GraphCassandra.class)
 public class TestGraphCassandra {
 
-	private GraphCassandra g;
+
+	private static EmbeddedCassandraService cassandra;
 	private CassandraConnection connection;
 	private static final String KEYSPACE = "test";
 	private static File tempDir;
@@ -66,9 +61,6 @@ public class TestGraphCassandra {
 	@BeforeClass
 	public static void before() throws Exception, InterruptedException {
 		tempDir = Files.createTempDir();
-		// Tell cassandra where the configuration files are.
-		// Use the test configuration file.
-		// System.setProperty("storage-config", "../../test/conf");
 
 		URL url = TestGraphCassandra.class.getClassLoader().getResource("cassandraTest.yaml");
 
@@ -90,76 +82,55 @@ public class TestGraphCassandra {
 	}
 
 	@Before
-	public void setup() throws ConfigurationException, TTransportException, IOException, InterruptedException {
-
+	public void setupTestGraphCassandra() throws ConfigurationException, TTransportException, IOException, InterruptedException {
 		connection = new CassandraConnection("localhost");
-		connection.getSession().execute(String.format("CREATE KEYSPACE %s", KEYSPACE));
-
-		g = new GraphCassandra(NodeFactory.createURI("http://example.com/graph"), KEYSPACE, connection);
+		connection.getSession().execute(String.format("CREATE KEYSPACE %s WITH REPLICATION = { 'class' : 'SimpleStrategy', 'replication_factor' : 1 }", KEYSPACE));
 		connection.deleteTables(KEYSPACE);
 		connection.createTables(KEYSPACE);
 	}
-
-	@Test
-	public void x() {
-		Node s = NodeFactory.createBlankNode();
-		Node o = NodeFactory.createURI("http://example.com/node");
-		Triple t = new Triple(s, RDF.type.asNode(), o);
-		g.add(t);
-		t = new Triple(s, RDFS.comment.asNode(), NodeFactory.createLiteral("This is the comment"));
-		g.add(t);
-		ExtendedIterator<Triple> iter = g.find(s, Node.ANY, Node.ANY);
-		while (iter.hasNext()) {
-			System.out.println(iter.next());
-		}
-
-		iter = g.find(Node.ANY, RDF.type.asNode(), Node.ANY);
-		while (iter.hasNext()) {
-			System.out.println(iter.next());
-		}
+	
+	@Inject
+	public IProducer<GraphCassandra> getGraphProducer() {
+		return graphProducer;
 	}
 
-	private static EmbeddedCassandraService cassandra;
 
-	// @Test
-	// public void testInProcessCassandraServer()
-	//// throws UnsupportedEncodingException, InvalidRequestException,
-	//// UnavailableException, TimedOutException, TException,
-	//// NotFoundException {
-	// {
-	// Cassandra.Client client = getClient();
-	//
-	// String key_user_id = "1";
-	//
-	// long timestamp = System.currentTimeMillis();
-	// ColumnPath cp = new ColumnPath("Standard1");
-	// cp.setColumn("name".getBytes("utf-8"));
-	//
-	// // insert
-	// client.insert("Keyspace1", key_user_id, cp, "Ran".getBytes("UTF-8"),
-	// timestamp, ConsistencyLevel.ONE);
-	//
-	// // read
-	// ColumnOrSuperColumn got = client.get("Keyspace1", key_user_id, cp,
-	// ConsistencyLevel.ONE);
-	//
-	// // assert
-	// assertNotNull("Got a null ColumnOrSuperColumn", got);
-	// assertEquals("Ran", new String(got.getColumn().getValue(), "utf-8"));
-	// }
-	//
-	// /**
-	// * Gets a connection to the localhost client
-	// *
-	// * @return
-	// * @throws TTransportException
-	// */
-	// private Cassandra.Client getClient() throws TTransportException {
-	// TTransport tr = new TSocket("localhost", 9170);
-	// TProtocol proto = new TBinaryProtocol(tr);
-	// Cassandra.Client client = new Cassandra.Client(proto);
-	// tr.open();
-	// return client;
-	// }
+	protected IProducer<GraphCassandra> graphProducer = new AbstractGraphProducer<GraphCassandra>() {
+
+		@Override
+		protected void afterClose(Graph g) {
+			((GraphCassandra)g).performDelete( Triple.ANY );
+		}
+
+		int graphCount = 0;
+		
+		@Override
+		protected GraphCassandra createNewGraph()  {
+			if (connection == null)
+			{
+				try {
+					setupTestGraphCassandra();
+				} catch (ConfigurationException | TTransportException | IOException | InterruptedException e) {
+					throw new RuntimeException( e );
+				}
+			}
+			return new GraphCassandra(NodeFactory.createURI("http://example.com/graph"+graphCount++), KEYSPACE, connection);
+		}
+
+		@Override
+		public Graph[] getDependsOn(Graph g) {
+			return null;
+		}
+
+		@Override
+		public Graph[] getNotDependsOn(Graph g) {
+			return new Graph[] { createNewGraph() };
+		}
+		
+		
+
+	};
+
+	
 
 }
