@@ -122,7 +122,7 @@ public class GraphCassandra extends GraphBase {
 		QueryPattern pattern = new QueryPattern( graph, t);
 		try {
 			String values = pattern.getValues();
-			for (TableName tbl : connection.getTableList()) {
+			for (TableName tbl : CassandraConnection.getTableList()) {
 				String stmt = String.format("INSERT INTO %s.%s (subject, predicate, object, graph) VALUES %s", keyspace,
 						tbl, values);
 				LOG.debug(stmt);
@@ -163,7 +163,7 @@ public class GraphCassandra extends GraphBase {
 
 	@Override
 	public boolean isClosed() {
-		return connection.getSession().isClosed();
+		return super.isClosed() || connection.getSession().isClosed();
 	}
 
 	@Override
