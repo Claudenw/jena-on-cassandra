@@ -19,17 +19,13 @@
 package org.apache.jena.cassandra.graph;
 
 import java.io.Closeable;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import org.apache.jena.graph.Node;
-import org.apache.jena.graph.Triple;
 import org.apache.jena.sparql.core.Quad;
 
 import com.datastax.driver.core.Cluster;

@@ -25,13 +25,11 @@ import java.util.List;
 import java.util.function.Function;
 import java.util.function.Predicate;
 
-import org.apache.jena.atlas.logging.Log;
 import org.apache.jena.graph.Node;
 import org.apache.jena.graph.Triple;
 import org.apache.jena.riot.thrift.ThriftConvert;
 import org.apache.jena.riot.thrift.wire.RDF_Term;
 import org.apache.jena.sparql.core.Quad;
-import org.apache.jena.util.iterator.ExtendedIterator;
 import org.apache.jena.util.iterator.WrappedIterator;
 import org.apache.thrift.TDeserializer;
 import org.apache.thrift.TException;
@@ -41,7 +39,8 @@ import com.datastax.driver.core.Row;
 import com.datastax.driver.core.utils.Bytes;
 
 /**
- * Class that builds a query based on the graph Node and the triple pattern or a Quad. 
+ * Class that builds a query based on the graph Node and the triple pattern or a
+ * Quad.
  *
  */
 public class QueryPattern {
@@ -49,7 +48,7 @@ public class QueryPattern {
 	 * The descriptive quad
 	 */
 	private final Quad quad;
-	
+
 	/*
 	 * A thrift serializer
 	 */
@@ -57,64 +56,78 @@ public class QueryPattern {
 
 	/**
 	 * Constructor.
-	 * @param connection The connection to use.
-	 * @param graph The graph name
-	 * @param triplePattern The triple to find.
+	 * 
+	 * @param connection
+	 *            The connection to use.
+	 * @param graph
+	 *            The graph name
+	 * @param triplePattern
+	 *            The triple to find.
 	 */
-	public QueryPattern(Node graph,
-			Triple triplePattern) {
-		this( new Quad( normalizeGraph(graph), triplePattern.getSubject(),
-				triplePattern.getPredicate(), triplePattern.getObject()));
+	public QueryPattern(Node graph, Triple triplePattern) {
+		this(new Quad(graph, triplePattern));
 	}
-	
+
 	/**
-	 * Normalize the  graph node to null for union graph or Node.ANY
-	 * @param graph The graph to normalize
+	 * Normalize the graph node to null for union graph or Node.ANY
+	 * 
+	 * @param graph
+	 *            The graph to normalize
 	 * @return The normalized graph.
 	 */
-	private static Node normalizeGraph( Node graph )
-	{
-		return (Node.ANY.equals(graph) || Quad.isUnionGraph(graph))? null : graph;
+	private static Node normalizeGraph(Node graph) {
+		return (Node.ANY.equals(graph) || Quad.isUnionGraph(graph)) ? null : graph;
 	}
 
 	/**
 	 * Constructor.
-	 * @param connection The connection ot use.
-	 * @param quad The quad to find.
+	 * 
+	 * @param connection
+	 *            The connection ot use.
+	 * @param quad
+	 *            The quad to find.
 	 */
 	public QueryPattern(Quad quad) {
-		this.quad = quad;
+		this.quad = new Quad(normalizeGraph(quad.getGraph()), quad.asTriple());
+
 	}
 
 	public Quad getQuad() {
 		return quad;
 	}
-	
+
 	/**
 	 * Get the table ID for this query.
+	 * 
 	 * @return The table ID for this query.
 	 */
 	public String getId() {
 		return CassandraConnection.getId(quad);
 	}
-	
+
 	/**
 	 * Get the table name for this query.
+	 * 
 	 * @return The table we are going to query.
 	 */
 	public TableName getTableName() {
 		return CassandraConnection.getTable(getId());
 	}
-	
-	public List<String> getQueryValues(List<ColumnName> colNames )
-	{
+
+	/**
+	 * Get the query values for the columns.
+	 * The returned values are the serialized values of the data.
+	 * 
+	 * @param colNames
+	 *            The column names to get
+	 * @return The query values in colNames order.
+	 */
+	public List<String> getQueryValues(List<ColumnName> colNames) {
 		List<String> retval = new ArrayList<String>();
-		for (ColumnName colName : colNames )
-		{
+		for (ColumnName colName : colNames) {
 			Node n = colName.getMatch(quad);
 			try {
-				retval.add( (n == null) ? null :
-				 valueOf(n));
+				retval.add((n == null) ? null : valueOf(n));
 			} catch (TException e) {
 				retval.add(null);
 			}
@@ -122,9 +135,9 @@ public class QueryPattern {
 		return retval;
 	}
 
-	
 	/**
 	 * Get the query filter used to filter results if needed.
+	 * 
 	 * @return the QueryFilter.
 	 */
 	public Predicate<Quad> getQueryFilter() {
@@ -132,44 +145,51 @@ public class QueryPattern {
 	}
 
 	/**
-	 * Get a where clause segment. 
-	 * @param needsAnd true if AND is required.
-	 * @param sb the string builder we are adding to
-	 * @param column the column name
-	 * @param value the value (may be null).
+	 * Get a where clause segment.
+	 * 
+	 * @param needsAnd
+	 *            true if AND is required.
+	 * @param sb
+	 *            the string builder we are adding to
+	 * @param column
+	 *            the column name
+	 * @param value
+	 *            the value (may be null).
 	 * @return the value of needsAnd for the next whereClause call.
-	 * @throws TException On serialization error.
+	 * @throws TException
+	 *             On serialization error.
 	 */
-	private boolean whereClause(boolean needsAnd, StringBuilder sb,
-			ColumnName column, Node value) throws TException {
+	private boolean whereClause(boolean needsAnd, StringBuilder sb, ColumnName column, Node value) throws TException {
 		if (value != null) {
-			sb.append(needsAnd ? " AND " : " WHERE ").append(
-					String.format("%s=%s", column, valueOf(value)));
+			sb.append(needsAnd ? " AND " : " WHERE ").append(String.format("%s=%s", column, valueOf(value)));
 			return true;
 		}
 		return needsAnd;
 	}
 
 	/**
-	 * Get the values for a Cassandra insert statement.
-	 * These are values that come after the "VALUES" keyword in the cassandra insert
-	 * statement.  e.g everything within and including the parens in " VALUES ( s, p, o, g )"
+	 * Get the values for a Cassandra insert statement. These are values that
+	 * come after the "VALUES" keyword in the cassandra insert statement. e.g
+	 * everything within and including the parens in " VALUES ( s, p, o, g )"
+	 * 
 	 * @return The values as a string for the cassandra insert statement.
-	 * @throws TException on serialization error
+	 * @throws TException
+	 *             on serialization error
 	 */
 	public String getValues() throws TException {
-		return String.format("( %s, %s, %s, %s )",
-				valueOf(ColumnName.S.getMatch(quad)),
-				valueOf(ColumnName.P.getMatch(quad)),
-				valueOf(ColumnName.O.getMatch(quad)), 
+		return String.format("( %s, %s, %s, %s )", valueOf(ColumnName.S.getMatch(quad)),
+				valueOf(ColumnName.P.getMatch(quad)), valueOf(ColumnName.O.getMatch(quad)),
 				valueOf(ColumnName.G.getMatch(quad)));
 	}
 
 	/**
 	 * Return the serialized value of the node.
-	 * @param node the node to serialize.
+	 * 
+	 * @param node
+	 *            the node to serialize.
 	 * @return The serialized node.
-	 * @throws TException on serialization error.
+	 * @throws TException
+	 *             on serialization error.
 	 */
 	public String valueOf(Node node) throws TException {
 		RDF_Term term = new RDF_Term();
@@ -179,13 +199,15 @@ public class QueryPattern {
 	}
 
 	/**
-	 * Get the where clause for the table.
-	 * The where clause for the table must not skip any column
-	 * names in the key, so this method returns a clause that only includes
-	 * the contiguous segments from the key.
-	 * @param tableName The table to create a where clause for.
+	 * Get the where clause for the table. The where clause for the table must
+	 * not skip any column names in the key, so this method returns a clause
+	 * that only includes the contiguous segments from the key.
+	 * 
+	 * @param tableName
+	 *            The table to create a where clause for.
 	 * @return the where clause as a string builder.
-	 * @throws TException on serialization error.
+	 * @throws TException
+	 *             on serialization error.
 	 */
 	public StringBuilder getWhereClause(TableName tableName) throws TException {
 		boolean needsAnd = false;
@@ -201,19 +223,23 @@ public class QueryPattern {
 	}
 
 	/**
-	 * Get the where clause for the graph specified in the constructor.
-	 * The where clause for the table must not skip any column
-	 * names in the key, so this method returns a clause that only includes
-	 * the contiguous segments from the key.
-	 *  @return The where clause.
-	 * @throws TException on serialization error.
+	 * Get the where clause for the graph specified in the constructor. The
+	 * where clause for the table must not skip any column names in the key, so
+	 * this method returns a clause that only includes the contiguous segments
+	 * from the key.
+	 * 
+	 * @return The where clause.
+	 * @throws TException
+	 *             on serialization error.
 	 */
 	public StringBuilder getWhereClause() throws TException {
 		return getWhereClause(getTableName());
 	}
 
 	/**
-	 * Returns true if the resulting query needs a filter to return the proper values.
+	 * Returns true if the resulting query needs a filter to return the proper
+	 * values.
+	 * 
 	 * @return true if the query needs a filter.
 	 */
 	public boolean needsFilter() {
@@ -222,7 +248,9 @@ public class QueryPattern {
 
 	/**
 	 * Returns true if the table query needs a filter.
-	 * @param tableName the table name to check.
+	 * 
+	 * @param tableName
+	 *            the table name to check.
 	 * @return true if the table name needs a filter.
 	 */
 	public boolean needsFilter(TableName tableName) {
@@ -239,31 +267,33 @@ public class QueryPattern {
 
 	/**
 	 * Get an iterator of delete statements for the tables.
-	 * @param graph The graph we are deleting from (may  be null)
-	 * @param pattern THe pattern we are deleting from the graph. (may be Triple.ANY)
+	 * 
+	 * @param graph
+	 *            The graph we are deleting from (may be null)
+	 * @param pattern
+	 *            THe pattern we are deleting from the graph. (may be
+	 *            Triple.ANY)
 	 * @return
 	 */
-	public Iterator<String> getDeleteStatements(CassandraConnection connection, String keyspace )
-	{
-		ExtendedIterator<TableName> tblNameIter = WrappedIterator.create( CassandraConnection.getTableList().iterator());
-		if (quad.getGraph() == null && Triple.ANY.equals( quad.asTriple() ))
-		{
-			return tblNameIter.mapWith(new Function<TableName,String>(){
+	public Iterator<String> getDeleteStatements(CassandraConnection connection, String keyspace) {
+		if (quad.getGraph() == null && Triple.ANY.equals(quad.asTriple())) {
+			return WrappedIterator.create(CassandraConnection.getTableList().iterator())
+					.mapWith(new Function<TableName, String>() {
 
-				@Override
-				public String apply(TableName arg0) {
-					
-					return String.format( "TRUNCATE %s.%s", keyspace, arg0);
-				}});
+						@Override
+						public String apply(TableName arg0) {
+
+							return String.format("TRUNCATE %s.%s", keyspace, arg0);
+						}
+					});
 		}
-		
-		return new DeleteGenerator(connection, keyspace, this, tblNameIter);
+
+		return new DeleteGenerator(connection, keyspace, this);
 	}
-	
-	
+
 	/**
-	 * A filter that ensures tha the results match the graph name and triple pattern for this
-	 * query pattern.
+	 * A filter that ensures tha the results match the graph name and triple
+	 * pattern for this query pattern.
 	 *
 	 */
 	public class ResultFilter implements Predicate<Quad> {
@@ -275,8 +305,7 @@ public class QueryPattern {
 
 		@Override
 		public boolean test(Quad t) {
-			return t.matches(pattern.getGraph(), pattern.getSubject(),
-					pattern.getPredicate(), pattern.getObject());
+			return t.matches(pattern.getGraph(), pattern.getSubject(), pattern.getPredicate(), pattern.getObject());
 		}
 
 	}
@@ -301,9 +330,8 @@ public class QueryPattern {
 				dser.deserialize(pred, t.getBytes(1).array());
 				dser.deserialize(obj, t.getBytes(2).array());
 				dser.deserialize(graph, t.getBytes(3).array());
-				return new Quad(ThriftConvert.convert(graph),
-						ThriftConvert.convert(subj),
-						ThriftConvert.convert(pred), ThriftConvert.convert(obj));
+				return new Quad(ThriftConvert.convert(graph), ThriftConvert.convert(subj), ThriftConvert.convert(pred),
+						ThriftConvert.convert(obj));
 			} catch (TException e) {
 				return null;
 			}
@@ -335,7 +363,8 @@ public class QueryPattern {
 	/**
 	 * A filter that finds Null values.
 	 *
-	 * @param <T> The type of object we are iterating over.
+	 * @param <T>
+	 *            The type of object we are iterating over.
 	 */
 	public static class FindNull<T> implements Predicate<T> {
 		@Override

@@ -81,7 +81,7 @@ public class DatasetGraphCassandra extends DatasetGraphBase {
 	public Iterator<Node> listGraphNodes() {
 		String query = String.format("SELECT %1$s FROM %s.%s where token(%1$s)>%s", 
 				ColumnName.G,
-				keyspace, connection.getTable(GRAPH_TABLE), Long.MIN_VALUE);
+				keyspace, CassandraConnection.getTable(GRAPH_TABLE), Long.MIN_VALUE);
 		LOG.debug(query);
 		ResultSet rs = connection.getSession().execute(query);
 		return WrappedIterator.create(rs.iterator()).mapWith(new RowToNode()).filterDrop(new FindNull<Node>()).toSet()
