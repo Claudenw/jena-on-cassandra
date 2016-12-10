@@ -18,6 +18,7 @@
 
 package org.apache.jena.cassandra.graph;
 
+import java.util.Iterator;
 import java.util.function.Function;
 
 import org.apache.commons.lang3.StringUtils;
@@ -37,6 +38,9 @@ import org.apache.jena.sparql.core.Quad;
 import org.apache.thrift.TException;
 
 import com.datastax.driver.core.ResultSet;
+import com.datastax.driver.core.exceptions.NoHostAvailableException;
+import com.datastax.driver.core.exceptions.QueryExecutionException;
+import com.datastax.driver.core.exceptions.QueryValidationException;
 
 import org.apache.jena.cassandra.graph.QueryPattern.RowToQuad;
 import org.apache.jena.cassandra.graph.QueryPattern.FindNull;
@@ -67,39 +71,43 @@ public class GraphCassandra extends GraphBase {
 	private static final Log LOG = LogFactory.getLog(GraphCassandra.class);
 
 	/**
-	 * Constructor.
-	 * A null or Node.ANY for the graph name results in the UnionGraph being used.
-	 * @param graph The name of the graph.
-	 * @param keyspace The keyspace to used.
-	 * @param connection The cassandra connection.
+	 * Constructor. A null or Node.ANY for the graph name results in the
+	 * UnionGraph being used.
+	 * 
+	 * @param graph
+	 *            The name of the graph.
+	 * @param keyspace
+	 *            The keyspace to used.
+	 * @param connection
+	 *            The cassandra connection.
 	 */
 	public GraphCassandra(Node graph, String keyspace, CassandraConnection connection) {
-		if (connection == null)
-		{
-			throw new IllegalArgumentException( "Connection may not be null");
+		if (connection == null) {
+			throw new IllegalArgumentException("Connection may not be null");
 		}
-		if (StringUtils.isBlank(keyspace))
-		{
-			throw new IllegalArgumentException( "Keyspace may not be null");
+		if (StringUtils.isBlank(keyspace)) {
+			throw new IllegalArgumentException("Keyspace may not be null");
 		}
-		this.graph = graph == null ? Node.ANY
-				: (Quad.isUnionGraph(graph) ? Node.ANY : graph);
+		this.graph = graph == null ? Node.ANY : (Quad.isUnionGraph(graph) ? Node.ANY : graph);
 		this.connection = connection;
 		this.keyspace = keyspace;
 	}
 
 	/**
 	 * Constructor. Creates Union graph.
-	 * @param keyspace The keyspace to used.
-	 * @param connection The cassandra connection.
+	 * 
+	 * @param keyspace
+	 *            The keyspace to used.
+	 * @param connection
+	 *            The cassandra connection.
 	 */
 	public GraphCassandra(String keyspace, CassandraConnection connection) {
 		this(null, keyspace, connection);
 	}
 
 	/**
-	 * Get the graph name.
-	 * May be Node.ANY
+	 * Get the graph name. May be Node.ANY
+	 * 
 	 * @return The graph name.
 	 */
 	public Node getGraphName() {
@@ -109,16 +117,14 @@ public class GraphCassandra extends GraphBase {
 	@Override
 	public void performAdd(Triple t) {
 		if (Quad.isDefaultGraph(graph)) {
-			throw new AddDeniedException("Can not add to default graph named "
-					+ graph);
+			throw new AddDeniedException("Can not add to default graph named " + graph);
 		}
-		QueryPattern pattern = new QueryPattern(connection, graph, t);
+		QueryPattern pattern = new QueryPattern( graph, t);
 		try {
 			String values = pattern.getValues();
-			for (String tbl : connection.getTableList()) {
-				String stmt = String
-						.format("INSERT INTO %s.%s (subject, predicate, object, graph) VALUES %s",
-								keyspace, tbl, values);
+			for (TableName tbl : connection.getTableList()) {
+				String stmt = String.format("INSERT INTO %s.%s (subject, predicate, object, graph) VALUES %s", keyspace,
+						tbl, values);
 				LOG.debug(stmt);
 				connection.getSession().execute(stmt);
 			}
@@ -130,37 +136,23 @@ public class GraphCassandra extends GraphBase {
 	@Override
 	public void performDelete(Triple t) {
 		if (Quad.isDefaultGraph(graph)) {
-			throw new AddDeniedException(
-					"Can not delete from default graph named " + graph);
+			throw new AddDeniedException("Can not delete from default graph named " + graph);
 		}
-		QueryPattern pattern = new QueryPattern(connection, graph, t);
+
+		QueryPattern pattern = new QueryPattern( graph, t);
 		try {
-
-			for (String tbl : connection.getTableList()) {
-
-				if (pattern.needsFilter(tbl)) {
-					LOG.debug("Delete requires filtering");
-					ExtendedIterator<Triple> iter = graphBaseFind(t);
-					try {
-						while (iter.hasNext()) {
-							performDelete(iter.next());
-						}
-					} finally {
-						iter.close();
-					}
-				} else {
-					String stmt = String
-							.format("DELETE subject, predicate, object, graph FROM %s.%s %s",
-									keyspace, tbl,
-									pattern.getWhereClause(tbl));
-					LOG.debug(stmt);
-					connection.getSession().execute(stmt);
-				}
-
-			}
-		} catch (TException e) {
-			LOG.error("bad values", e);
+			Iterator<String> stmts = pattern.getDeleteStatements(connection, keyspace);
+			while( stmts.hasNext() )
+			{
+				String stmt = stmts.next();
+				LOG.debug(stmt);
+				connection.getSession().execute(stmt);
+			}	
+		} catch (NoHostAvailableException | QueryExecutionException | QueryValidationException e) {
+			LOG.error(e);
+			throw e;
 		}
+
 	}
 
 	@Override
@@ -198,9 +190,9 @@ public class GraphCassandra extends GraphBase {
 
 	@Override
 	public boolean isEmpty() {
-		QueryPattern pattern = new QueryPattern(connection, graph, Triple.ANY);
-		String tableName = pattern.getTableName();
-		String columnName = pattern.getPartitionKey();
+		QueryPattern pattern = new QueryPattern( graph, Triple.ANY);
+		TableName tableName = pattern.getTableName();
+		ColumnName columnName = tableName.getPartitionKey();
 		StringBuilder whereClause = null;
 		try {
 			whereClause = pattern.getWhereClause();
@@ -209,10 +201,9 @@ public class GraphCassandra extends GraphBase {
 			whereClause = new StringBuilder();
 		}
 		whereClause.append(whereClause.length() == 0 ? " WHERE " : " AND ")
-				.append(String.format("token(%s)>%s", columnName,
-						Long.MIN_VALUE));
-		String query = String.format("SELECT token(%s) FROM %s.%s %s LIMIT 1",
-				columnName, keyspace, tableName, whereClause);
+				.append(String.format("token(%s)>%s", columnName, Long.MIN_VALUE));
+		String query = String.format("SELECT token(%s) FROM %s.%s %s LIMIT 1", columnName, keyspace, tableName,
+				whereClause);
 		LOG.debug(query);
 		ResultSet rs = connection.getSession().execute(query);
 		return rs.one() == null;
@@ -220,9 +211,9 @@ public class GraphCassandra extends GraphBase {
 
 	@Override
 	protected int graphBaseSize() {
-		QueryPattern pattern = new QueryPattern(connection, graph, Triple.ANY);
-		String tableName = pattern.getTableName();
-		String columnName = pattern.getPartitionKey();
+		QueryPattern pattern = new QueryPattern( graph, Triple.ANY);
+		TableName tableName = pattern.getTableName();
+		ColumnName columnName = tableName.getPartitionKey();
 		StringBuilder whereClause = null;
 		try {
 			whereClause = pattern.getWhereClause(tableName);
@@ -231,10 +222,8 @@ public class GraphCassandra extends GraphBase {
 			whereClause = new StringBuilder();
 		}
 		whereClause.append(whereClause.length() == 0 ? " WHERE " : " AND ")
-				.append(String.format("token(%s)>%s", columnName,
-						Long.MIN_VALUE));
-		String query = String.format("SELECT count(*) FROM %s.%s %s",
-				columnName, keyspace, tableName, whereClause);
+				.append(String.format("token(%s)>%s", columnName, Long.MIN_VALUE));
+		String query = String.format("SELECT count(*) FROM %s.%s %s", columnName, keyspace, tableName, whereClause);
 		LOG.debug(query);
 		ResultSet rs = connection.getSession().execute(query);
 		return rs.one().getInt(0);
@@ -242,14 +231,13 @@ public class GraphCassandra extends GraphBase {
 
 	@Override
 	protected boolean graphBaseContains(Triple t) {
-		QueryPattern pattern = new QueryPattern(connection, graph, t);
+		QueryPattern pattern = new QueryPattern( graph, t);
 		if (pattern.needsFilter()) {
 			return containsByFind(t);
 		}
-		String tableName = pattern.getTableName();
-		StringBuilder query = new StringBuilder(String.format(
-				"SELECT Subject,Predicate,Object,Graph FROM %s.%s",
-				keyspace, tableName));
+		TableName tableName = pattern.getTableName();
+		StringBuilder query = new StringBuilder(
+				String.format("SELECT Subject,Predicate,Object,Graph FROM %s.%s", keyspace, tableName));
 		try {
 			query.append(pattern.getWhereClause(tableName));
 		} catch (TException e) {
@@ -265,12 +253,10 @@ public class GraphCassandra extends GraphBase {
 
 	@Override
 	protected ExtendedIterator<Triple> graphBaseFind(Triple triplePattern) {
-		QueryPattern pattern = new QueryPattern(connection, graph,
-				triplePattern);
-		String tableName = pattern.getTableName();
-		StringBuilder query = new StringBuilder(String.format(
-				"SELECT Subject,Predicate,Object,Graph FROM %s.%s",
-				keyspace, tableName));
+		QueryPattern pattern = new QueryPattern( graph, triplePattern);
+		TableName tableName = pattern.getTableName();
+		StringBuilder query = new StringBuilder(
+				String.format("SELECT Subject,Predicate,Object,Graph FROM %s.%s", keyspace, tableName));
 		try {
 			query.append(pattern.getWhereClause(tableName));
 		} catch (TException e) {
@@ -280,8 +266,8 @@ public class GraphCassandra extends GraphBase {
 
 		LOG.debug(query);
 		ResultSet rs = connection.getSession().execute(query.toString());
-		ExtendedIterator<Quad> iter = WrappedIterator.create(rs.iterator())
-				.mapWith(new RowToQuad()).filterDrop(new FindNull<Quad>());
+		ExtendedIterator<Quad> iter = WrappedIterator.create(rs.iterator()).mapWith(new RowToQuad())
+				.filterDrop(new FindNull<Quad>());
 
 		if (pattern.needsFilter()) {
 			iter = iter.filterKeep(pattern.getQueryFilter());

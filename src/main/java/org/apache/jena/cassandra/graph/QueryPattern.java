@@ -20,15 +20,19 @@
 package org.apache.jena.cassandra.graph;
 
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.function.Function;
 import java.util.function.Predicate;
 
+import org.apache.jena.atlas.logging.Log;
 import org.apache.jena.graph.Node;
 import org.apache.jena.graph.Triple;
 import org.apache.jena.riot.thrift.ThriftConvert;
 import org.apache.jena.riot.thrift.wire.RDF_Term;
 import org.apache.jena.sparql.core.Quad;
+import org.apache.jena.util.iterator.ExtendedIterator;
+import org.apache.jena.util.iterator.WrappedIterator;
 import org.apache.thrift.TDeserializer;
 import org.apache.thrift.TException;
 import org.apache.thrift.TSerializer;
@@ -42,17 +46,10 @@ import com.datastax.driver.core.utils.Bytes;
  */
 public class QueryPattern {
 	/*
-	 * The graph name 
+	 * The descriptive quad
 	 */
-	private final Node graph;
-	/*
-	 * The triple pattern to find
-	 */
-	private final Triple triplePattern;
-	/*
-	 * The connection to communicate with.
-	 */
-	private final CassandraConnection connection;
+	private final Quad quad;
+	
 	/*
 	 * A thrift serializer
 	 */
@@ -64,11 +61,10 @@ public class QueryPattern {
 	 * @param graph The graph name
 	 * @param triplePattern The triple to find.
 	 */
-	public QueryPattern(CassandraConnection connection, Node graph,
+	public QueryPattern(Node graph,
 			Triple triplePattern) {
-		this.graph = normalizeGraph(graph);
-		this.triplePattern = triplePattern;
-		this.connection = connection;
+		this( new Quad( normalizeGraph(graph), triplePattern.getSubject(),
+				triplePattern.getPredicate(), triplePattern.getObject()));
 	}
 	
 	/**
@@ -86,102 +82,53 @@ public class QueryPattern {
 	 * @param connection The connection ot use.
 	 * @param quad The quad to find.
 	 */
-	public QueryPattern(CassandraConnection connection, Quad quad) {
-		this(connection, quad.getGraph(), quad.asTriple());
+	public QueryPattern(Quad quad) {
+		this.quad = quad;
 	}
 
+	public Quad getQuad() {
+		return quad;
+	}
+	
 	/**
 	 * Get the table ID for this query.
 	 * @return The table ID for this query.
 	 */
 	public String getId() {
-		return CassandraConnection.getId(graph, triplePattern);
+		return CassandraConnection.getId(quad);
 	}
 	
 	/**
 	 * Get the table name for this query.
 	 * @return The table we are going to query.
 	 */
-	public String getTableName() {
-		return connection.getTable(getId());
+	public TableName getTableName() {
+		return CassandraConnection.getTable(getId());
 	}
-
-	/**
-	 * Get the node for the match type.
-	 * 
-	 * A column name is one of "subject", "predicate", "object" or "graph".
-	 * 
-	 * Will not return Node.ANY.
-	 * 
-	 * @param columnName The column name to find.
-	 * @return the value or null.  
-	 */
-	private Node getMatch(String columnName) {
-		if (CassandraConnection.COL_SUBJECT.equals(columnName)) {
-			return triplePattern.getMatchSubject();
-		}
-		if (CassandraConnection.COL_PREDICATE.equals(columnName)) {
-			return triplePattern.getMatchPredicate();
-		}
-		if (CassandraConnection.COL_OBJECT.equals(columnName)) {
-			return triplePattern.getMatchObject();
-		}
-		if (CassandraConnection.COL_GRAPH.equals(columnName)) {
-			return this.graph;
-		}
-		throw new IllegalArgumentException(String.format(
-				"column name %s is invalid", columnName));
-
-	}
-
-	/**
-	 * Get the list of query column names in order specified by the name.
-	 * 
-	 * A column name is "subject", "predicate", "object" or "graph".
-	 * 
-	 * @param tblName The table name
-	 * @return The list of column types.
-	 */
-	private List<String> getQueryColumns(String tblName) {
+	
+	public List<String> getQueryValues(List<ColumnName> colNames )
+	{
 		List<String> retval = new ArrayList<String>();
-		for (int i = 0; i < tblName.length(); i++) {
-			char c = tblName.charAt(i);
-			switch (c) {
-			case 'S':
-				retval.add(CassandraConnection.COL_SUBJECT);
-				break;
-			case 'P':
-				retval.add(CassandraConnection.COL_PREDICATE);
-				break;
-			case 'O':
-				retval.add(CassandraConnection.COL_OBJECT);
-				break;
-			case 'G':
-				retval.add(CassandraConnection.COL_GRAPH);
-				break;
-			default:
-				throw new IllegalArgumentException(String.format(
-						"Table name %s is invalid at character %s", tblName, c));
+		for (ColumnName colName : colNames )
+		{
+			Node n = colName.getMatch(quad);
+			try {
+				retval.add( (n == null) ? null :
+				 valueOf(n));
+			} catch (TException e) {
+				retval.add(null);
 			}
 		}
 		return retval;
-
 	}
 
-	/**
-	 * Get the Cassandra partition key column type.
-	 * @return The column name for the partition key.
-	 */
-	public String getPartitionKey() {
-		return getQueryColumns(getTableName()).get(0);
-	}
-
+	
 	/**
 	 * Get the query filter used to filter results if needed.
 	 * @return the QueryFilter.
 	 */
 	public Predicate<Quad> getQueryFilter() {
-		return new ResultFilter(new Quad(this.graph, triplePattern));
+		return new ResultFilter(quad);
 	}
 
 	/**
@@ -194,7 +141,7 @@ public class QueryPattern {
 	 * @throws TException On serialization error.
 	 */
 	private boolean whereClause(boolean needsAnd, StringBuilder sb,
-			String column, Node value) throws TException {
+			ColumnName column, Node value) throws TException {
 		if (value != null) {
 			sb.append(needsAnd ? " AND " : " WHERE ").append(
 					String.format("%s=%s", column, valueOf(value)));
@@ -212,9 +159,10 @@ public class QueryPattern {
 	 */
 	public String getValues() throws TException {
 		return String.format("( %s, %s, %s, %s )",
-				valueOf(triplePattern.getSubject()),
-				valueOf(triplePattern.getPredicate()),
-				valueOf(triplePattern.getObject()), valueOf(this.graph));
+				valueOf(ColumnName.S.getMatch(quad)),
+				valueOf(ColumnName.P.getMatch(quad)),
+				valueOf(ColumnName.O.getMatch(quad)), 
+				valueOf(ColumnName.G.getMatch(quad)));
 	}
 
 	/**
@@ -239,15 +187,15 @@ public class QueryPattern {
 	 * @return the where clause as a string builder.
 	 * @throws TException on serialization error.
 	 */
-	public StringBuilder getWhereClause(String tableName) throws TException {
+	public StringBuilder getWhereClause(TableName tableName) throws TException {
 		boolean needsAnd = false;
 		StringBuilder sb = new StringBuilder();
-		for (String col : getQueryColumns(tableName)) {
-			Node n = getMatch(col);
+		for (ColumnName col : tableName.getQueryColumns()) {
+			Node n = col.getMatch(quad);
 			if (n == null) {
 				break;
 			}
-			needsAnd = whereClause(needsAnd, sb, col, getMatch(col));
+			needsAnd = whereClause(needsAnd, sb, col, n);
 		}
 		return sb;
 	}
@@ -269,27 +217,50 @@ public class QueryPattern {
 	 * @return true if the query needs a filter.
 	 */
 	public boolean needsFilter() {
-		return connection.needsFilter(getId());
+		return CassandraConnection.needsFilter(getId());
 	}
 
 	/**
-	 * Returns true if the table name query needs a filter.
+	 * Returns true if the table query needs a filter.
 	 * @param tableName the table name to check.
 	 * @return true if the table name needs a filter.
 	 */
-	public boolean needsFilter(String tableName) {
+	public boolean needsFilter(TableName tableName) {
 		boolean hasMissing = false;
-		for (String col : getQueryColumns(tableName)) {
-			Node n = getMatch(col);
+		for (ColumnName col : tableName.getQueryColumns()) {
+			Node n = col.getMatch(quad);
 			if (hasMissing && n != null) {
 				return true;
 			}
-			hasMissing |= n != null;
+			hasMissing |= n == null;
 		}
 		return false;
 	}
 
+	/**
+	 * Get an iterator of delete statements for the tables.
+	 * @param graph The graph we are deleting from (may  be null)
+	 * @param pattern THe pattern we are deleting from the graph. (may be Triple.ANY)
+	 * @return
+	 */
+	public Iterator<String> getDeleteStatements(CassandraConnection connection, String keyspace )
+	{
+		ExtendedIterator<TableName> tblNameIter = WrappedIterator.create( CassandraConnection.getTableList().iterator());
+		if (quad.getGraph() == null && Triple.ANY.equals( quad.asTriple() ))
+		{
+			return tblNameIter.mapWith(new Function<TableName,String>(){
 
+				@Override
+				public String apply(TableName arg0) {
+					
+					return String.format( "TRUNCATE %s.%s", keyspace, arg0);
+				}});
+		}
+		
+		return new DeleteGenerator(connection, keyspace, this, tblNameIter);
+	}
+	
+	
 	/**
 	 * A filter that ensures tha the results match the graph name and triple pattern for this
 	 * query pattern.
