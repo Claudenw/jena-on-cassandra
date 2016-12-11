@@ -19,22 +19,29 @@
 
 package org.apache.jena.cassandra.graph;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.function.Function;
 import java.util.function.Predicate;
 
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+import org.apache.jena.datatypes.xsd.impl.XSDBaseNumericType;
 import org.apache.jena.graph.Node;
 import org.apache.jena.graph.Triple;
 import org.apache.jena.riot.thrift.ThriftConvert;
 import org.apache.jena.riot.thrift.wire.RDF_Term;
 import org.apache.jena.sparql.core.Quad;
+import org.apache.jena.util.iterator.ExtendedIterator;
+import org.apache.jena.util.iterator.NiceIterator;
 import org.apache.jena.util.iterator.WrappedIterator;
 import org.apache.thrift.TDeserializer;
 import org.apache.thrift.TException;
 import org.apache.thrift.TSerializer;
 
+import com.datastax.driver.core.ResultSet;
 import com.datastax.driver.core.Row;
 import com.datastax.driver.core.utils.Bytes;
 
@@ -53,6 +60,8 @@ public class QueryPattern {
 	 * A thrift serializer
 	 */
 	private TSerializer ser = new TSerializer();
+
+	private static final Log LOG = LogFactory.getLog(QueryPattern.class);
 
 	/**
 	 * Constructor.
@@ -115,15 +124,19 @@ public class QueryPattern {
 	}
 
 	/**
-	 * Get the query values for the columns.
-	 * The returned values are the serialized values of the data.
+	 * Get the query values for the columns. The returned values are the
+	 * serialized values of the data or null if the data was not specified.
 	 * 
 	 * @param colNames
 	 *            The column names to get
 	 * @return The query values in colNames order.
 	 */
 	public List<String> getQueryValues(List<ColumnName> colNames) {
-		List<String> retval = new ArrayList<String>();
+		return getQueryValues( colNames, quad );
+	}
+	
+	public List<String> getQueryValues(List<ColumnName> colNames, Quad quad) {
+			List<String> retval = new ArrayList<String>();
 		for (ColumnName colName : colNames) {
 			Node n = colName.getMatch(quad);
 			try {
@@ -145,29 +158,6 @@ public class QueryPattern {
 	}
 
 	/**
-	 * Get a where clause segment.
-	 * 
-	 * @param needsAnd
-	 *            true if AND is required.
-	 * @param sb
-	 *            the string builder we are adding to
-	 * @param column
-	 *            the column name
-	 * @param value
-	 *            the value (may be null).
-	 * @return the value of needsAnd for the next whereClause call.
-	 * @throws TException
-	 *             On serialization error.
-	 */
-	private boolean whereClause(boolean needsAnd, StringBuilder sb, ColumnName column, Node value) throws TException {
-		if (value != null) {
-			sb.append(needsAnd ? " AND " : " WHERE ").append(String.format("%s=%s", column, valueOf(value)));
-			return true;
-		}
-		return needsAnd;
-	}
-
-	/**
 	 * Get the values for a Cassandra insert statement. These are values that
 	 * come after the "VALUES" keyword in the cassandra insert statement. e.g
 	 * everything within and including the parens in " VALUES ( s, p, o, g )"
@@ -176,11 +166,13 @@ public class QueryPattern {
 	 * @throws TException
 	 *             on serialization error
 	 */
-	public String getValues() throws TException {
-		return String.format("( %s, %s, %s, %s )", valueOf(ColumnName.S.getMatch(quad)),
-				valueOf(ColumnName.P.getMatch(quad)), valueOf(ColumnName.O.getMatch(quad)),
-				valueOf(ColumnName.G.getMatch(quad)));
-	}
+	// public String getValues() throws TException {
+	// return String.format("( %s, %s, %s, %s )",
+	// valueOf(ColumnName.S.getMatch(quad)),
+	// valueOf(ColumnName.P.getMatch(quad)),
+	// valueOf(ColumnName.O.getMatch(quad)),
+	// valueOf(ColumnName.G.getMatch(quad)));
+	// }
 
 	/**
 	 * Return the serialized value of the node.
@@ -210,16 +202,114 @@ public class QueryPattern {
 	 *             on serialization error.
 	 */
 	public StringBuilder getWhereClause(TableName tableName) throws TException {
-		boolean needsAnd = false;
-		StringBuilder sb = new StringBuilder();
-		for (ColumnName col : tableName.getQueryColumns()) {
-			Node n = col.getMatch(quad);
-			if (n == null) {
-				break;
+		return getWhereClause( tableName, quad );
+	}
+	
+	public StringBuilder getWhereClause(TableName tableName, Quad quad) throws TException {
+		
+		StringBuilder result = new StringBuilder(" WHERE ");
+
+		List<String> values = getQueryValues(tableName.getQueryColumns(), quad);
+		int lastCol = values.size();
+		for (int i = values.size() - 1; i > 0; i--) {
+			if (values.get(i) == null) {
+				lastCol = i;
 			}
-			needsAnd = whereClause(needsAnd, sb, col, n);
 		}
-		return sb;
+		if (lastCol == 0) {
+			return result.append(tableName.getPartitionKey().getScanValue());
+		}
+		for (int i = 0; i < lastCol; i++) {
+			if (i > 0) {
+				result.append(" AND ");
+			}
+			if (values.get(i) == null) {
+				result.append(tableName.getColumn(i).getScanValue());
+			} else {
+				result.append(String.format("%s=%s", tableName.getColumn(i), values.get(i)));
+			}
+		}
+		
+		BigDecimal index = getObjectValue();
+		if (index != null)
+		{
+			result.append( String.format(" AND %s=%s", ColumnName.I, index));
+		}
+		return result;
+	}
+
+	public ExtendedIterator<Quad> doFind(CassandraConnection connection, String keyspace) {
+		return doFind(connection, keyspace, null);
+	}
+
+	public ExtendedIterator<Quad> doFind(CassandraConnection connection, String keyspace, String extraWhere) {
+		return doFind(connection, keyspace, extraWhere, null);
+	}
+
+	public ExtendedIterator<Quad> doFind(CassandraConnection connection, String keyspace, String extraWhere,
+			String suffix) {
+		try {
+			String query = getFindQuery( keyspace, extraWhere, suffix );
+		ResultSet rs = connection.getSession().execute(query);
+		ExtendedIterator<Quad> iter = WrappedIterator.create(rs.iterator()).mapWith(new RowToQuad())
+				.filterDrop(new FindNull<Quad>());
+		if (needsFilter()) {
+			iter = iter.filterKeep(getQueryFilter());
+		}
+		return iter;
+		} catch (TException e) {
+			LOG.error("Bad query", e);
+			return NiceIterator.emptyIterator();
+		}
+	}
+
+	public String getFindQuery(String keyspace, String extraWhere,
+			String suffix) throws TException
+	{
+		/*
+		 * Adjust the table name based on the presence of the index on the object field.
+		 * If the object field is a number then we need to use the index to filter it.
+		 */
+		BigDecimal index = getObjectValue();
+		Quad tableQuad = quad;
+		//QueryPattern tablePattern = this;
+		if (index != null)
+		{
+			tableQuad = new Quad( quad.getGraph(), quad.getSubject(), quad.getPredicate(), Node.ANY );
+			//tablePattern = new QueryPattern( tableQuad );
+		}
+
+		TableName tableName = CassandraConnection.getTable(CassandraConnection.getId(tableQuad));
+		StringBuilder query = new StringBuilder(
+				String.format("SELECT Subject,Predicate,Object,Graph FROM %s.%s", keyspace, tableName));
+		
+			StringBuilder whereClause = getWhereClause(tableName, tableQuad);
+			if (extraWhere != null) {
+				whereClause.append((whereClause.length() > 0) ? " AND " : " WHERE ");
+				whereClause.append(extraWhere);
+			}
+			query.append(whereClause);
+		
+		if (suffix != null) {
+			query.append(" ").append(suffix);
+		}
+
+		LOG.debug(query);	
+		return query.toString();
+	}
+	
+	public boolean doContains(CassandraConnection connection, String keyspace) {
+		ExtendedIterator<Quad> iter = null;
+		if (needsFilter()) {
+			iter = doFind(connection, keyspace);
+		} else {
+			iter = doFind(connection, keyspace, null, "LIMIT 1");
+		}
+		try {
+			return iter.hasNext();
+		} finally {
+			iter.close();
+		}
 	}
 
 	/**
@@ -289,6 +379,82 @@ public class QueryPattern {
 		}
 
 		return new DeleteGenerator(connection, keyspace, this);
+	}
+
+	/**
+	 * Get a count of the triples that match the pattern for this table in the
+	 * specified keyspace.
+	 * 
+	 * @param connection
+	 *            the Cassandra connection to use.
+	 * @param keyspace
+	 *            the keyspace to query.
+	 * @return The count as a long
+	 * @throws TException
+	 *             On serialization error.
+	 */
+	public long getCount(CassandraConnection connection, String keyspace) throws TException {
+		TableName tableName = getTableName();
+		String query = String.format("SELECT count(*) FROM %s.%s %s", keyspace, tableName, getWhereClause(tableName));
+		LOG.debug(query);
+		ResultSet rs = connection.getSession().execute(query);
+		return rs.one().getLong(0);
+	}
+
+	private BigDecimal getObjectValue()
+	{
+		Node object = ColumnName.O.getMatch(quad);
+		BigDecimal index = null;
+		if (object != null && object.isLiteral() && object.getLiteralDatatype() instanceof XSDBaseNumericType) {
+			index = new BigDecimal(object.getLiteral().getLexicalForm());
+		}
+		return index;
+	}
+	
+	public String getInsertStatement(String keyspace) throws TException
+	{
+		if (ColumnName.S.getMatch(quad) == null || ColumnName.P.getMatch(quad) == null
+				|| ColumnName.O.getMatch(quad) == null || ColumnName.G.getMatch(quad) == null) {
+			throw new IllegalArgumentException(
+					"Graph, subject, predicate and object must be specified for an insert: " + quad.toString());
+		}
+
+		BigDecimal index = getObjectValue();
+
+		StringBuilder sb = new StringBuilder("BEGIN BATCH").append(System.lineSeparator());
+
+		for (TableName tbl : CassandraConnection.getTableList()) {
+			sb.append(String.format("INSERT INTO %s.%s (%s, %s, %s, %s", keyspace, tbl, ColumnName.S, 
+					ColumnName.P,
+					ColumnName.O, ColumnName.G));
+			if (index != null) {
+				sb.append(String.format(", %s", ColumnName.I));
+			}
+			sb.append(String.format(") VALUES ( %s, %s, %s, %s", valueOf(ColumnName.S.getMatch(quad)),
+					valueOf(ColumnName.P.getMatch(quad)), valueOf(ColumnName.O.getMatch(quad)),
+					valueOf(ColumnName.G.getMatch(quad))));
+			if (index != null) {
+				sb.append(", ").append(index);
+			}
+			sb.append(");").append(System.lineSeparator());
+		}
+		return sb.append("APPLY BATCH;").toString();
+	}
+	
+	/**
+	 * Performs the insert of the data.
+	 * 
+	 * @param connection
+	 *            The cassandra connection.
+	 * @param keyspace
+	 *            The keyspace for the table.
+	 * @throws TException
+	 *             on encoding error.
+	 */
+	public void doInsert(CassandraConnection connection, String keyspace) throws TException {
+		String stmt = getInsertStatement(keyspace);
+		LOG.debug(stmt);
+		connection.getSession().execute(stmt);
 	}
 
 	/**

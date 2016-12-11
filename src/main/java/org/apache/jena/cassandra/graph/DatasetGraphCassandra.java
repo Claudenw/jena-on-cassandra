@@ -24,7 +24,6 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.jena.cassandra.graph.QueryPattern.FindNull;
 import org.apache.jena.cassandra.graph.QueryPattern.RowToNode;
-import org.apache.jena.cassandra.graph.QueryPattern.RowToQuad;
 import org.apache.jena.graph.Graph;
 import org.apache.jena.graph.GraphUtil;
 import org.apache.jena.graph.Node;
@@ -32,7 +31,6 @@ import org.apache.jena.graph.Triple;
 import org.apache.jena.query.ReadWrite;
 import org.apache.jena.sparql.core.DatasetGraphBase;
 import org.apache.jena.sparql.core.Quad;
-import org.apache.jena.util.iterator.ExtendedIterator;
 import org.apache.jena.util.iterator.NiceIterator;
 import org.apache.jena.util.iterator.WrappedIterator;
 import org.apache.thrift.TException;
@@ -79,92 +77,35 @@ public class DatasetGraphCassandra extends DatasetGraphBase {
 
 	@Override
 	public Iterator<Node> listGraphNodes() {
-		String query = String.format("SELECT %1$s FROM %s.%s where token(%1$s)>%s", 
-				ColumnName.G,
-				keyspace, CassandraConnection.getTable(GRAPH_TABLE), Long.MIN_VALUE);
+		String query = String.format("SELECT %1$s FROM %s.%s where token(%1$s)>%s", ColumnName.G, keyspace,
+				CassandraConnection.getTable(GRAPH_TABLE), Long.MIN_VALUE);
 		LOG.debug(query);
 		ResultSet rs = connection.getSession().execute(query);
 		return WrappedIterator.create(rs.iterator()).mapWith(new RowToNode()).filterDrop(new FindNull<Node>()).toSet()
 				.iterator();
 	}
 
-	private StringBuilder getSelect(QueryPattern pattern) throws TException {
-		TableName tableName = pattern.getTableName();
-		StringBuilder query = new StringBuilder(String.format("SELECT %s,%s,%s,%s FROM %s.%s",
-				ColumnName.S, ColumnName.P, ColumnName.O,
-				ColumnName.G, keyspace, tableName));
-
-		query.append(pattern.getWhereClause(tableName));
-		return query;
-	}
-
 	@Override
 	public boolean contains(Node g, Node s, Node p, Node o) {
-		QueryPattern pattern = new QueryPattern( g, Triple.createMatch(s, p, o));
-		if (pattern.needsFilter()) {
-			return super.contains(g, s, p, o);
-		}
-		try {
-			StringBuilder query = getSelect(pattern);
-			query.append(" LIMIT 1");
-			LOG.debug(query);
-			ResultSet rs = connection.getSession().execute(query.toString());
-			return rs.one() != null;
-		} catch (TException e) {
-			LOG.error("Bad query", e);
-			return false;
-		}
+		QueryPattern pattern = new QueryPattern(g, Triple.createMatch(s, p, o));
+		return pattern.doContains(connection, keyspace);
 	}
 
 	@Override
 	public Iterator<Quad> find(Node g, Node s, Node p, Node o) {
-
-		QueryPattern pattern = new QueryPattern( g, Triple.createMatch(s, p, o));
-		try {
-			StringBuilder query = getSelect(pattern);
-			LOG.debug(query);
-			ResultSet rs = connection.getSession().execute(query.toString());
-			ExtendedIterator<Quad> iter = WrappedIterator.create(rs.iterator()).mapWith(new RowToQuad())
-					.filterDrop(new FindNull<Quad>());
-
-			if (pattern.needsFilter()) {
-				iter = iter.filterKeep(pattern.getQueryFilter());
-			}
-			return iter;
-		} catch (TException e) {
-			LOG.error("Bad query", e);
-			return NiceIterator.emptyIterator();
-		}
-
+		QueryPattern pattern = new QueryPattern(g, Triple.createMatch(s, p, o));
+		return pattern.doFind(connection, keyspace);
 	}
 
 	@Override
 	public Iterator<Quad> findNG(Node g, Node s, Node p, Node o) {
-		QueryPattern pattern = new QueryPattern( g, Triple.createMatch(s, p, o));
-		TableName tableName = pattern.getTableName();
-		StringBuilder query = new StringBuilder(String.format("SELECT %s,%s,%s,%s FROM %s.%s",
-				ColumnName.S, ColumnName.P, ColumnName.O,
-				ColumnName.G, keyspace, tableName));
-		StringBuilder whereClause = null;
+		QueryPattern pattern = new QueryPattern(g, Triple.createMatch(s, p, o));
 		try {
-			whereClause = pattern.getWhereClause(tableName);
-			whereClause.append(whereClause.length() == 0 ? " WHERE " : " AND ").append("graph <> ")
-					.append(pattern.valueOf(Quad.defaultGraphIRI));
+			return pattern.doFind(connection, keyspace, "graph <> " + pattern.valueOf(Quad.defaultGraphIRI));
 		} catch (TException e) {
-			LOG.error("Bad query", e);
+			LOG.error("Unable to execute findNG", e);
 			return NiceIterator.emptyIterator();
 		}
-
-		query.append(whereClause);
-		LOG.debug(query);
-		ResultSet rs = connection.getSession().execute(query.toString());
-		ExtendedIterator<Quad> iter = WrappedIterator.create(rs.iterator()).mapWith(new RowToQuad())
-				.filterDrop(new FindNull<Quad>());
-
-		if (pattern.needsFilter()) {
-			iter = iter.filterKeep(pattern.getQueryFilter());
-		}
-		return iter;
 	}
 
 	@Override
@@ -249,22 +190,13 @@ public class DatasetGraphCassandra extends DatasetGraphBase {
 
 	@Override
 	public long size() {
-		QueryPattern pattern = new QueryPattern( null, Triple.ANY);
-		TableName tableName = pattern.getTableName();
-		ColumnName columnName = tableName.getPartitionKey();
-		StringBuilder whereClause = null;
+		QueryPattern pattern = new QueryPattern(null, Triple.ANY);
 		try {
-			whereClause = pattern.getWhereClause(tableName);
+			return pattern.getCount(connection, keyspace);
 		} catch (TException e) {
 			LOG.error("Error building where clause", e);
-			whereClause = new StringBuilder();
+			return -1;
 		}
-		whereClause.append(whereClause.length() == 0 ? " WHERE " : " AND ")
-				.append(String.format("token(%s)>%s", columnName, Long.MIN_VALUE));
-		String query = String.format("SELECT count(*) FROM %s.%s %s", columnName, keyspace, tableName, whereClause);
-		LOG.debug(query);
-		ResultSet rs = connection.getSession().execute(query);
-		return rs.one().getLong(0);
 	}
 
 	@Override

@@ -1,3 +1,21 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package org.apache.jena.cassandra.graph;
 
 import org.apache.jena.graph.Node;
@@ -8,9 +26,11 @@ import org.apache.jena.sparql.core.Quad;
  *
  */
 public enum ColumnName {
-	S("subject"), P("predicate"), O("object"), G("graph");
+	S("subject", "blob"), P("predicate", "blob"), O("object", "blob"), G("graph", "blob"), 
+	I( "obj_idx", "varint");
 
 	private String name;
+	private String datatype;
 
 	/**
 	 * Constructor.
@@ -18,8 +38,9 @@ public enum ColumnName {
 	 * @param name
 	 *            The long name of the column
 	 */
-	ColumnName(String name) {
+	ColumnName(String name, String datatype) {
 		this.name = name;
+		this.datatype = datatype;
 	}
 
 	/**
@@ -69,6 +90,7 @@ public enum ColumnName {
 		case P:
 			return quad.asTriple().getMatchPredicate();
 		case O:
+		case I:
 			return quad.asTriple().getMatchObject();
 		case G:
 			return (Node.ANY.equals(quad.getGraph()) || Quad.isUnionGraph(quad.getGraph())) ? null : quad.getGraph();
@@ -76,5 +98,28 @@ public enum ColumnName {
 			return null;
 		}
 	}
+	
+	/**
+	 * Get the scan value for a where clause.
+	 * @return The scan value string for this column.
+	 */
+	public String getScanValue()
+	{
+		if (datatype.equals( "blob"))
+		{
+			return String.format( "token(%s) >= %s", this, Long.MIN_VALUE);
+		}
+		else
+		{
+			return String.format( "%s >= %s", this, Integer.MIN_VALUE);
+		}
+	}
 
+	/**
+	 * The text to create the column.
+	 * @return the column definition for construction.
+	 */
+	public String getCreateText() {
+		return String.format( "%s %s", name, datatype);
+	}
 }

@@ -1,3 +1,20 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package org.apache.jena.cassandra.graph;
 
 import java.util.Arrays;
@@ -29,6 +46,8 @@ public class TableName {
 			cols[i] = ColumnName.valueOf(this.name.substring(i, i + 1));
 		}
 	}
+	
+	public int getColumnCount() { return 4; }
 
 	/**
 	 * Get the i'th column. 0<= i <= 3
@@ -75,7 +94,7 @@ public class TableName {
 	 * 
 	 * @return the key definition for the table.
 	 */
-	public String getPrimaryKey() {
+	private String getPrimaryKey() {
 		StringBuilder sb = new StringBuilder("( ");
 		for (ColumnName columnName : cols) {
 			if (sb.length() > 2) {
@@ -93,5 +112,18 @@ public class TableName {
 	 */
 	public ColumnName getPartitionKey() {
 		return cols[0];
+	}
+	
+	public String[] getCreateTableStatements(String keyspace) {
+		String[] retval = new String[2];
+		
+		retval[0] = String.format("CREATE TABLE %s.%s (%s, %s, %s, %s, %s, PRIMARY KEY %s)",
+				keyspace, this, ColumnName.S.getCreateText(), ColumnName.P.getCreateText(), 
+				ColumnName.O.getCreateText(), ColumnName.G.getCreateText(),
+				ColumnName.I.getCreateText(), getPrimaryKey());
+		
+		retval[1] = String.format("CREATE INDEX %2$s_%3$s ON %1$s.%2$s (%3$s)", 
+				keyspace, this, ColumnName.I );
+		return retval;
 	}
 }

@@ -175,10 +175,11 @@ public class CassandraConnection implements Closeable {
 	 */
 	public void createTables(String keyspace) {
 		for (TableName tbl : getTableList()) {
-			String stmt = String.format("CREATE TABLE %s.%s (%s blob, %s blob, %s blob, %s blob, PRIMARY KEY %s)",
-					keyspace, tbl, ColumnName.S, ColumnName.P, ColumnName.O, ColumnName.G, tbl.getPrimaryKey());
+			for (String stmt : tbl.getCreateTableStatements(keyspace))
+			{
 			LOG.debug(stmt);
 			getSession().execute(stmt);
+			}
 		}
 	}
 

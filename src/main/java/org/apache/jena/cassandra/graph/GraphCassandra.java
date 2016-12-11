@@ -31,8 +31,6 @@ import org.apache.jena.graph.Triple;
 import org.apache.jena.graph.impl.AllCapabilities;
 import org.apache.jena.graph.impl.GraphBase;
 import org.apache.jena.util.iterator.ExtendedIterator;
-import org.apache.jena.util.iterator.NiceIterator;
-import org.apache.jena.util.iterator.WrappedIterator;
 import org.apache.jena.shared.AddDeniedException;
 import org.apache.jena.sparql.core.Quad;
 import org.apache.thrift.TException;
@@ -41,9 +39,6 @@ import com.datastax.driver.core.ResultSet;
 import com.datastax.driver.core.exceptions.NoHostAvailableException;
 import com.datastax.driver.core.exceptions.QueryExecutionException;
 import com.datastax.driver.core.exceptions.QueryValidationException;
-
-import org.apache.jena.cassandra.graph.QueryPattern.RowToQuad;
-import org.apache.jena.cassandra.graph.QueryPattern.FindNull;
 
 /**
  * The Cassandra graph implementation.
@@ -121,13 +116,14 @@ public class GraphCassandra extends GraphBase {
 		}
 		QueryPattern pattern = new QueryPattern( graph, t);
 		try {
-			String values = pattern.getValues();
-			for (TableName tbl : CassandraConnection.getTableList()) {
-				String stmt = String.format("INSERT INTO %s.%s (subject, predicate, object, graph) VALUES %s", keyspace,
-						tbl, values);
-				LOG.debug(stmt);
-				connection.getSession().execute(stmt);
-			}
+			pattern.doInsert(connection, keyspace);
+//			String values = pattern.getValues();
+//			for (TableName tbl : CassandraConnection.getTableList()) {
+//				String stmt = String.format("INSERT INTO %s.%s (subject, predicate, object, graph) VALUES %s", keyspace,
+//						tbl, values);
+//				LOG.debug(stmt);
+//				connection.getSession().execute(stmt);
+//			}
 		} catch (TException e) {
 			LOG.error("bad values", e);
 		}
@@ -212,67 +208,25 @@ public class GraphCassandra extends GraphBase {
 	@Override
 	protected int graphBaseSize() {
 		QueryPattern pattern = new QueryPattern( graph, Triple.ANY);
-		TableName tableName = pattern.getTableName();
-		ColumnName columnName = tableName.getPartitionKey();
-		StringBuilder whereClause = null;
 		try {
-			whereClause = pattern.getWhereClause(tableName);
+			long retval = pattern.getCount(connection, keyspace);
+			return retval > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int)retval;
 		} catch (TException e) {
 			LOG.error("Error building where clause", e);
-			whereClause = new StringBuilder();
+			return -1;
 		}
-		whereClause.append(whereClause.length() == 0 ? " WHERE " : " AND ")
-				.append(String.format("token(%s)>%s", columnName, Long.MIN_VALUE));
-		String query = String.format("SELECT count(*) FROM %s.%s %s", columnName, keyspace, tableName, whereClause);
-		LOG.debug(query);
-		ResultSet rs = connection.getSession().execute(query);
-		return rs.one().getInt(0);
 	}
 
 	@Override
 	protected boolean graphBaseContains(Triple t) {
 		QueryPattern pattern = new QueryPattern( graph, t);
-		if (pattern.needsFilter()) {
-			return containsByFind(t);
-		}
-		TableName tableName = pattern.getTableName();
-		StringBuilder query = new StringBuilder(
-				String.format("SELECT Subject,Predicate,Object,Graph FROM %s.%s", keyspace, tableName));
-		try {
-			query.append(pattern.getWhereClause(tableName));
-		} catch (TException e) {
-			LOG.error("Bad query", e);
-			return false;
-		}
-		query.append(" LIMIT 1");
-
-		LOG.debug(query);
-		ResultSet rs = connection.getSession().execute(query.toString());
-		return rs.one() != null;
+		return pattern.doContains(connection, keyspace);
 	}
 
 	@Override
 	protected ExtendedIterator<Triple> graphBaseFind(Triple triplePattern) {
 		QueryPattern pattern = new QueryPattern( graph, triplePattern);
-		TableName tableName = pattern.getTableName();
-		StringBuilder query = new StringBuilder(
-				String.format("SELECT Subject,Predicate,Object,Graph FROM %s.%s", keyspace, tableName));
-		try {
-			query.append(pattern.getWhereClause(tableName));
-		} catch (TException e) {
-			LOG.error("Bad query", e);
-			return NiceIterator.emptyIterator();
-		}
-
-		LOG.debug(query);
-		ResultSet rs = connection.getSession().execute(query.toString());
-		ExtendedIterator<Quad> iter = WrappedIterator.create(rs.iterator()).mapWith(new RowToQuad())
-				.filterDrop(new FindNull<Quad>());
-
-		if (pattern.needsFilter()) {
-			iter = iter.filterKeep(pattern.getQueryFilter());
-		}
-		return iter.mapWith(new QuadToTriple());
+		return pattern.doFind( connection, keyspace).mapWith(new QuadToTriple());
 	}
 
 	/**
