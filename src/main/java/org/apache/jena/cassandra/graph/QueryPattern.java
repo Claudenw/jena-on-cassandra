@@ -21,15 +21,22 @@ package org.apache.jena.cassandra.graph;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
 import java.util.function.Function;
 import java.util.function.Predicate;
 
+import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.apache.jena.datatypes.RDFDatatype;
+import org.apache.jena.datatypes.TypeMapper;
 import org.apache.jena.datatypes.xsd.impl.XSDBaseNumericType;
 import org.apache.jena.graph.Node;
+import org.apache.jena.graph.NodeFactory;
 import org.apache.jena.graph.Triple;
 import org.apache.jena.riot.thrift.ThriftConvert;
 import org.apache.jena.riot.thrift.wire.RDF_Term;
@@ -51,6 +58,28 @@ import com.datastax.driver.core.utils.Bytes;
  *
  */
 public class QueryPattern {
+
+	private final static String SELECT_COLUMNS;
+
+	static {
+		ColumnName[] cols = new ColumnName[6];
+		for (ColumnName c : ColumnName.values()) {
+			if (c.getQueryPos() != -1) {
+				cols[c.getQueryPos()] = c;
+			}
+
+		}
+		StringBuilder sb = new StringBuilder();
+		for (ColumnName c : cols) {
+			if (sb.length() > 0) {
+				sb.append(", ");
+			}
+			sb.append(c);
+
+		}
+		SELECT_COLUMNS = sb.toString();
+	}
+
 	/*
 	 * The descriptive quad
 	 */
@@ -101,6 +130,11 @@ public class QueryPattern {
 
 	}
 
+	/**
+	 * Get the quad the pattern is working with.
+	 * 
+	 * @return the quad the pattern is working with.
+	 */
 	public Quad getQuad() {
 		return quad;
 	}
@@ -124,25 +158,73 @@ public class QueryPattern {
 	}
 
 	/**
-	 * Get the query values for the columns. The returned values are the
-	 * serialized values of the data or null if the data was not specified.
+	 * Get a list of query values for the columns in the order specified in the
+	 * column names list. These are only the basic column not the extra columns
 	 * 
 	 * @param colNames
-	 *            The column names to get
-	 * @return The query values in colNames order.
+	 *            The column names to get the values for.
+	 * @return the query data in order.
 	 */
 	public List<String> getQueryValues(List<ColumnName> colNames) {
-		return getQueryValues( colNames, quad );
+		return getQueryValues(colNames, quad);
 	}
-	
-	public List<String> getQueryValues(List<ColumnName> colNames, Quad quad) {
-			List<String> retval = new ArrayList<String>();
+
+	/**
+	 * Get a list of query values for the columns in the order specified in the
+	 * column names list. 
+	 * 
+	 * @param colNames
+	 *            The column names to get the values for.
+	 * @param quad
+	 *            The quad to extract the data from.
+	 * @return
+	 */
+	private List<String> getQueryValues(List<ColumnName> colNames, Quad quad) {
+		List<String> retval = new ArrayList<String>();
 		for (ColumnName colName : colNames) {
 			Node n = colName.getMatch(quad);
-			try {
-				retval.add((n == null) ? null : valueOf(n));
-			} catch (TException e) {
+			if (n == null) {
 				retval.add(null);
+			} else {
+
+				try {
+					switch (colName) {
+					case S:
+					case P:
+					case G:
+						retval.add(valueOf(n));
+						break;
+					case O:
+						retval.add((n.isLiteral() ? hexOf(n.getLiteralLexicalForm()) : valueOf(n)));
+						break;
+					case I:
+						if (n.isLiteral() && n.getLiteralDatatype() instanceof XSDBaseNumericType) {
+							retval.add(n.getLiteral().getLexicalForm());
+						} else {
+							retval.add(null);
+						}
+						break;
+					case L:
+						if (n.isLiteral() && StringUtils.isNotEmpty(n.getLiteralLanguage())) {
+							retval.add(n.getLiteralLanguage());
+						} else {
+							retval.add(null);
+						}
+						break;
+					case D:
+						if (n.isLiteral()) {
+							retval.add(n.getLiteralDatatypeURI());
+						} else {
+							retval.add(null);
+						}
+						break;
+					default:
+						retval.add(null);
+					}
+
+				} catch (TException e) {
+					retval.add(null);
+				}
 			}
 		}
 		return retval;
@@ -158,28 +240,12 @@ public class QueryPattern {
 	}
 
 	/**
-	 * Get the values for a Cassandra insert statement. These are values that
-	 * come after the "VALUES" keyword in the cassandra insert statement. e.g
-	 * everything within and including the parens in " VALUES ( s, p, o, g )"
-	 * 
-	 * @return The values as a string for the cassandra insert statement.
-	 * @throws TException
-	 *             on serialization error
-	 */
-	// public String getValues() throws TException {
-	// return String.format("( %s, %s, %s, %s )",
-	// valueOf(ColumnName.S.getMatch(quad)),
-	// valueOf(ColumnName.P.getMatch(quad)),
-	// valueOf(ColumnName.O.getMatch(quad)),
-	// valueOf(ColumnName.G.getMatch(quad)));
-	// }
-
-	/**
 	 * Return the serialized value of the node.
 	 * 
 	 * @param node
 	 *            the node to serialize.
-	 * @return The serialized node.
+	 * @return The serialized node in a string form for use in cassandra
+	 *         queries.
 	 * @throws TException
 	 *             on serialization error.
 	 */
@@ -188,6 +254,17 @@ public class QueryPattern {
 		ThriftConvert.toThrift(node, null, term, false);
 		byte[] bary = ser.serialize(term);
 		return Bytes.toHexString(bary);
+	}
+
+	/**
+	 * get the hex value for a string.
+	 * 
+	 * @param strValue
+	 *            the string to convert
+	 * @return The hex value string representing the input string.
+	 */
+	private String hexOf(String strValue) {
+		return Bytes.toHexString(strValue.getBytes());
 	}
 
 	/**
@@ -201,12 +278,13 @@ public class QueryPattern {
 	 * @throws TException
 	 *             on serialization error.
 	 */
-	public StringBuilder getWhereClause(TableName tableName) throws TException {
-		return getWhereClause( tableName, quad );
+	private StringBuilder getWhereClause(TableName tableName) throws TException {
+		return getWhereClause(tableName, quad, getObjectExtraValues(ColumnName.O.getMatch(quad)));
 	}
-	
-	public StringBuilder getWhereClause(TableName tableName, Quad quad) throws TException {
-		
+
+	private StringBuilder getWhereClause(TableName tableName, Quad quad, Map<ColumnName, Object> extraValueMap)
+			throws TException {
+
 		StringBuilder result = new StringBuilder(" WHERE ");
 
 		List<String> values = getQueryValues(tableName.getQueryColumns(), quad);
@@ -217,87 +295,135 @@ public class QueryPattern {
 			}
 		}
 		if (lastCol == 0) {
-			return result.append(tableName.getPartitionKey().getScanValue());
-		}
-		for (int i = 0; i < lastCol; i++) {
-			if (i > 0) {
-				result.append(" AND ");
+			result.append(tableName.getPartitionKey().getScanValue());
+		} else {
+			for (int i = 0; i < lastCol; i++) {
+				if (i > 0) {
+					result.append(" AND ");
+				}
+				if (values.get(i) == null) {
+					result.append(tableName.getColumn(i).getScanValue());
+				} else {
+					result.append(String.format("%s=%s", tableName.getColumn(i), values.get(i)));
+				}
 			}
-			if (values.get(i) == null) {
-				result.append(tableName.getColumn(i).getScanValue());
-			} else {
-				result.append(String.format("%s=%s", tableName.getColumn(i), values.get(i)));
-			}
 		}
-		
-		BigDecimal index = getObjectValue();
-		if (index != null)
-		{
-			result.append( String.format(" AND %s=%s", ColumnName.I, index));
+
+		for (ColumnName colName : extraValueMap.keySet()) {
+			result.append(String.format(" AND %s=%s", colName, extraValueMap.get(colName)));
 		}
+
 		return result;
 	}
 
+	/**
+	 * Execute a find on the database.
+	 * 
+	 * @param connection
+	 *            The connection to use
+	 * @param keyspace
+	 *            The keyspace to query.
+	 * @return An ExtendedIterator over the quads.
+	 */
 	public ExtendedIterator<Quad> doFind(CassandraConnection connection, String keyspace) {
 		return doFind(connection, keyspace, null);
 	}
 
+	/**
+	 * Execute a find on the database.
+	 * 
+	 * @param connection
+	 *            The connection to use
+	 * @param keyspace
+	 *            The keyspace to query.
+	 * @param extraWhere
+	 *            Any extra clauses to add to the query. May be null.
+	 * @return An ExtendedIterator over the quads.
+	 */
 	public ExtendedIterator<Quad> doFind(CassandraConnection connection, String keyspace, String extraWhere) {
 		return doFind(connection, keyspace, extraWhere, null);
 	}
 
+	/**
+	 * Execute a find on the database.
+	 * 
+	 * @param connection
+	 *            The connection to use
+	 * @param keyspace
+	 *            The keyspace to query.
+	 * @param extraWhere
+	 *            Any extra clauses to add to the query. May be null.
+	 * @param suffix
+	 *            Any extra suffix to add to the query (e.g. "Limit 1"). May be
+	 *            null.
+	 * @return An ExtendedIterator over the quads.
+	 */
 	public ExtendedIterator<Quad> doFind(CassandraConnection connection, String keyspace, String extraWhere,
 			String suffix) {
 		try {
-			String query = getFindQuery( keyspace, extraWhere, suffix );
-		ResultSet rs = connection.getSession().execute(query);
-		ExtendedIterator<Quad> iter = WrappedIterator.create(rs.iterator()).mapWith(new RowToQuad())
-				.filterDrop(new FindNull<Quad>());
-		if (needsFilter()) {
-			iter = iter.filterKeep(getQueryFilter());
-		}
-		return iter;
+			String query = getFindQuery(keyspace, extraWhere, suffix);
+			ResultSet rs = connection.getSession().execute(query);
+			ExtendedIterator<Quad> iter = WrappedIterator.create(rs.iterator()).mapWith(new RowToQuad())
+					.filterDrop(new FindNull<Quad>());
+			if (needsFilter()) {
+				iter = iter.filterKeep(getQueryFilter());
+			}
+			return iter;
 		} catch (TException e) {
 			LOG.error("Bad query", e);
 			return NiceIterator.emptyIterator();
 		}
 	}
 
-	public String getFindQuery(String keyspace, String extraWhere,
-			String suffix) throws TException
-	{
+	/*
+	 * package private for testing
+	 */
+	/* package private */ String getFindQuery(String keyspace, String extraWhere, String suffix) throws TException {
 		/*
-		 * Adjust the table name based on the presence of the index on the object field.
-		 * If the object field is a number then we need to use the index to filter it.
+		 * Adjust the table name based on the presence of the index on the
+		 * object field. If the object field is a number then we need to use the
+		 * index to filter it.
 		 */
-		BigDecimal index = getObjectValue();
+		Node object = ColumnName.O.getMatch(quad);
+		Map<ColumnName, Object> extraValueMap = getObjectExtraValues(object);
+		if (extraValueMap.containsKey(ColumnName.I)) {
+			/* remove the data type column of numeric values */
+			extraValueMap.remove(ColumnName.D);
+		}
+
 		Quad tableQuad = quad;
-		//QueryPattern tablePattern = this;
-		if (index != null)
-		{
-			tableQuad = new Quad( quad.getGraph(), quad.getSubject(), quad.getPredicate(), Node.ANY );
-			//tablePattern = new QueryPattern( tableQuad );
+		if (extraValueMap.containsKey(ColumnName.I)) {
+			tableQuad = new Quad(quad.getGraph(), quad.getSubject(), quad.getPredicate(), Node.ANY);
 		}
 
 		TableName tableName = CassandraConnection.getTable(CassandraConnection.getId(tableQuad));
 		StringBuilder query = new StringBuilder(
-				String.format("SELECT Subject,Predicate,Object,Graph FROM %s.%s", keyspace, tableName));
-		
-			StringBuilder whereClause = getWhereClause(tableName, tableQuad);
-			if (extraWhere != null) {
-				whereClause.append((whereClause.length() > 0) ? " AND " : " WHERE ");
-				whereClause.append(extraWhere);
-			}
-			query.append(whereClause);
-		
+				String.format("SELECT %s FROM %s.%s", SELECT_COLUMNS, keyspace, tableName));
+
+		StringBuilder whereClause = getWhereClause(tableName, tableQuad, extraValueMap);
+		if (extraWhere != null) {
+			whereClause.append((whereClause.length() > 0) ? " AND " : " WHERE ");
+			whereClause.append(extraWhere);
+		}
+		query.append(whereClause);
+
 		if (suffix != null) {
 			query.append(" ").append(suffix);
 		}
 
-		LOG.debug(query);	
+		LOG.debug(query);
 		return query.toString();
 	}
-	
+
+	/**
+	 * Checks to see if the quad exists in the database.
+	 * 
+	 * @param connection
+	 *            The connection to use.
+	 * @param keyspace
+	 *            the keyspace to check
+	 * @return True the quad is in the database, false otherwise.
+	 */
 	public boolean doContains(CassandraConnection connection, String keyspace) {
 		ExtendedIterator<Quad> iter = null;
 		if (needsFilter()) {
@@ -401,46 +527,40 @@ public class QueryPattern {
 		return rs.one().getLong(0);
 	}
 
-	private BigDecimal getObjectValue()
-	{
-		Node object = ColumnName.O.getMatch(quad);
-		BigDecimal index = null;
-		if (object != null && object.isLiteral() && object.getLiteralDatatype() instanceof XSDBaseNumericType) {
-			index = new BigDecimal(object.getLiteral().getLexicalForm());
-		}
-		return index;
-	}
-	
-	public String getInsertStatement(String keyspace) throws TException
-	{
+	/*
+	 * package private for testing purposes
+	 */
+	/* package private */ String getInsertStatement(String keyspace) throws TException {
 		if (ColumnName.S.getMatch(quad) == null || ColumnName.P.getMatch(quad) == null
 				|| ColumnName.O.getMatch(quad) == null || ColumnName.G.getMatch(quad) == null) {
 			throw new IllegalArgumentException(
 					"Graph, subject, predicate and object must be specified for an insert: " + quad.toString());
 		}
 
-		BigDecimal index = getObjectValue();
+		Node object = ColumnName.O.getMatch(quad);
+		Map<ColumnName, Object> extraValueMap = getObjectExtraValues(object);
 
 		StringBuilder sb = new StringBuilder("BEGIN BATCH").append(System.lineSeparator());
 
 		for (TableName tbl : CassandraConnection.getTableList()) {
-			sb.append(String.format("INSERT INTO %s.%s (%s, %s, %s, %s", keyspace, tbl, ColumnName.S, 
-					ColumnName.P,
+			sb.append(String.format("INSERT INTO %s.%s (%s, %s, %s, %s", keyspace, tbl, ColumnName.S, ColumnName.P,
 					ColumnName.O, ColumnName.G));
-			if (index != null) {
-				sb.append(String.format(", %s", ColumnName.I));
+			for (ColumnName colName : extraValueMap.keySet()) {
+				sb.append(String.format(", %s", colName));
 			}
+
 			sb.append(String.format(") VALUES ( %s, %s, %s, %s", valueOf(ColumnName.S.getMatch(quad)),
-					valueOf(ColumnName.P.getMatch(quad)), valueOf(ColumnName.O.getMatch(quad)),
+					valueOf(ColumnName.P.getMatch(quad)),
+					(object.isLiteral() ? hexOf(object.getLiteral().getLexicalForm()) : valueOf(object)),
 					valueOf(ColumnName.G.getMatch(quad))));
-			if (index != null) {
-				sb.append(", ").append(index);
+			for (ColumnName colName : extraValueMap.keySet()) {
+				sb.append(String.format(", %s", extraValueMap.get(colName)));
 			}
 			sb.append(");").append(System.lineSeparator());
 		}
 		return sb.append("APPLY BATCH;").toString();
 	}
-	
+
 	/**
 	 * Performs the insert of the data.
 	 * 
@@ -455,6 +575,33 @@ public class QueryPattern {
 		String stmt = getInsertStatement(keyspace);
 		LOG.debug(stmt);
 		connection.getSession().execute(stmt);
+	}
+
+	/**
+	 * Create a map of columns to extra values for the specified object node.
+	 * The resulting map will only have the column names for extra values needed
+	 * for the object node type.
+	 * 
+	 * @param object
+	 *            The object node to process
+	 * @return A map of extra values indexed by columnName. May be empty but not
+	 *         null.
+	 */
+	private Map<ColumnName, Object> getObjectExtraValues(Node object) {
+		// use treemap to ensure column names are always returned in the same order.
+		Map<ColumnName, Object> retval = new TreeMap<ColumnName, Object>();
+
+		if (object != null && object.isLiteral()) {
+			if (object.getLiteralDatatype() instanceof XSDBaseNumericType) {
+				retval.put(ColumnName.I, new BigDecimal(object.getLiteral().getLexicalForm()));
+			}
+			retval.put(ColumnName.D, String.format("'%s'", object.getLiteralDatatypeURI()));
+			String lang = object.getLiteralLanguage();
+			if (!StringUtils.isBlank(lang)) {
+				retval.put(ColumnName.L, String.format("'%s'", lang.toLowerCase()));
+			}
+		}
+		return retval;
 	}
 
 	/**
@@ -485,19 +632,32 @@ public class QueryPattern {
 		private TDeserializer dser = new TDeserializer();
 
 		@Override
-		public Quad apply(Row t) {
+		public Quad apply(Row row) {
 
 			RDF_Term subj = new RDF_Term();
 			RDF_Term pred = new RDF_Term();
-			RDF_Term obj = new RDF_Term();
 			RDF_Term graph = new RDF_Term();
+			Node obj = null;
 			try {
-				dser.deserialize(subj, t.getBytes(0).array());
-				dser.deserialize(pred, t.getBytes(1).array());
-				dser.deserialize(obj, t.getBytes(2).array());
-				dser.deserialize(graph, t.getBytes(3).array());
+				dser.deserialize(subj, row.getBytes(ColumnName.S.getQueryPos()).array());
+				dser.deserialize(pred, row.getBytes(ColumnName.P.getQueryPos()).array());
+				dser.deserialize(graph, row.getBytes(ColumnName.G.getQueryPos()).array());
+
+				if (row.getString(ColumnName.L.getQueryPos()) == null) {
+					// not a literal just read the node
+					RDF_Term objTerm = new RDF_Term();
+					dser.deserialize(objTerm, row.getBytes(ColumnName.O.getQueryPos()).array());
+					obj = ThriftConvert.convert(objTerm);
+
+				} else {
+					String lex = new String(row.getBytes(ColumnName.O.getQueryPos()).array());
+					String lang = row.getString(ColumnName.L.getQueryPos());
+					String dTypeURL = row.getString(ColumnName.D.getQueryPos());
+					RDFDatatype dType = TypeMapper.getInstance().getSafeTypeByName(dTypeURL);
+					obj = NodeFactory.createLiteral(lex, lang, dType);
+				}
 				return new Quad(ThriftConvert.convert(graph), ThriftConvert.convert(subj), ThriftConvert.convert(pred),
-						ThriftConvert.convert(obj));
+						obj);
 			} catch (TException e) {
 				return null;
 			}

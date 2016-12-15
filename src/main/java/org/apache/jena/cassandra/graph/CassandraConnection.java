@@ -175,15 +175,12 @@ public class CassandraConnection implements Closeable {
 	 */
 	public void createTables(String keyspace) {
 		for (TableName tbl : getTableList()) {
-			for (String stmt : tbl.getCreateTableStatements(keyspace))
-			{
-			LOG.debug(stmt);
-			getSession().execute(stmt);
+			for (String stmt : tbl.getCreateTableStatements(keyspace)) {
+				LOG.debug(stmt);
+				getSession().execute(stmt);
 			}
 		}
 	}
-
-	
 
 	/**
 	 * Get the table name for the ID.
@@ -211,46 +208,4 @@ public class CassandraConnection implements Closeable {
 		return NEEDS_FILTER.contains(tableId);
 	}
 
-//	public static TableName findTableWithColumns(int pos, List<ColumnName> cols) {
-//		int[] ratings = new int[4];
-//		List<TableName> tables = new ArrayList<TableName>(Arrays.asList(SPOG, POGS, OSGP, GSPO));
-//		StringBuilder sb = new StringBuilder().append( cols.get(pos).getChar());
-//		for (int i = 0; i < pos; i++) {
-//			ColumnName col = cols.get(i);
-//			sb.append(col.getChar());
-//			for (int j = 0; j < 4; j++) {
-//				if (tables.get(j).getName().substring(0, pos - 1).indexOf(col.getChar()) > -1) {
-//					ratings[j]++;
-//				}
-//				if (tables.get(j).getName().charAt(pos) == cols.get(pos).getChar()) {
-//					ratings[j]++;
-//				}
-//			}
-//		}
-//		for (int i = pos; i < cols.size(); i++) {
-//			for (int j = 0; j < 4; j++) {
-//				if (tables.get(j).getName().charAt(i) == cols.get(pos).getChar()) {
-//					ratings[j]++;
-//				}
-//				if (tables.get(j).getName().charAt(pos) == cols.get(pos).getChar()) {
-//					ratings[j]++;
-//				}
-//			}
-//		}
-//
-//		String colStr = sb.toString();
-//		for (int j = 0; j < 4; j++) {
-//			if (colStr.indexOf(tables.get(j).getName().charAt(0)) == -1) {
-//				ratings[j] = -1;
-//			}
-//		}
-//
-//		int max = 0;
-//		for (int i = 1; i < 4; i++) {
-//			if (ratings[max] < ratings[i]) {
-//				max = i;
-//			}
-//		}
-//		return tables.get(max);
-//	}
 }

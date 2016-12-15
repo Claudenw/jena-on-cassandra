@@ -22,7 +22,6 @@ import java.io.File;
 import java.io.IOException;
 import java.net.URL;
 
-import org.apache.cassandra.contrib.utils.service.CassandraServiceDataCleaner;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.service.EmbeddedCassandraService;
@@ -46,10 +45,10 @@ import org.xenei.junit.contract.Contract.Inject;
 public class TestGraphCassandra {
 
 
-	private static EmbeddedCassandraService cassandra;
 	private CassandraConnection connection;
 	private static final String KEYSPACE = "test";
 	private static File tempDir;
+	private static CassandraSetup cassandra;
 
 	/**
 	 * Set embedded cassandra up and spawn it in a new thread.
@@ -60,30 +59,18 @@ public class TestGraphCassandra {
 	 */
 	@BeforeClass
 	public static void before() throws Exception, InterruptedException {
-		tempDir = Files.createTempDir();
-
-		URL url = TestGraphCassandra.class.getClassLoader().getResource("cassandraTest.yaml");
-
-		System.setProperty("cassandra.config", url.toString());
-		System.setProperty("cassandra.storagedir", tempDir.toString());
-		CassandraServiceDataCleaner cleaner = new CassandraServiceDataCleaner();
-		cleaner.prepare();
-		cassandra = new EmbeddedCassandraService();
-		cassandra.init();
-		Thread t = new Thread(cassandra);
-		t.setDaemon(true);
-		t.start();
-
+		cassandra = new CassandraSetup();
 	}
+
 
 	@AfterClass
 	public static void after() {
-		FileUtils.deleteRecursive(tempDir);
+		cassandra.shutdown();
 	}
 
 	@Before
 	public void setupTestGraphCassandra() throws ConfigurationException, TTransportException, IOException, InterruptedException {
-		connection = new CassandraConnection("localhost");
+		connection = new CassandraConnection("localhost", cassandra.getNativePort());
 		connection.getSession().execute(String.format("CREATE KEYSPACE %s WITH REPLICATION = { 'class' : 'SimpleStrategy', 'replication_factor' : 1 }", KEYSPACE));
 		connection.deleteTables(KEYSPACE);
 		connection.createTables(KEYSPACE);

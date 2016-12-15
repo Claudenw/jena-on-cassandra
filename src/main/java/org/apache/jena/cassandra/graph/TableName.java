@@ -46,8 +46,10 @@ public class TableName {
 			cols[i] = ColumnName.valueOf(this.name.substring(i, i + 1));
 		}
 	}
-	
-	public int getColumnCount() { return 4; }
+
+	public int getColumnCount() {
+		return 4;
+	}
 
 	/**
 	 * Get the i'th column. 0<= i <= 3
@@ -113,17 +115,26 @@ public class TableName {
 	public ColumnName getPartitionKey() {
 		return cols[0];
 	}
-	
+
+	/**
+	 * Create the tables in the keyspace.
+	 * 
+	 * @param keyspace
+	 *            The keyspace to create the tables in.
+	 * @return an array of table and index creation strings.
+	 */
 	public String[] getCreateTableStatements(String keyspace) {
-		String[] retval = new String[2];
-		
-		retval[0] = String.format("CREATE TABLE %s.%s (%s, %s, %s, %s, %s, PRIMARY KEY %s)",
-				keyspace, this, ColumnName.S.getCreateText(), ColumnName.P.getCreateText(), 
-				ColumnName.O.getCreateText(), ColumnName.G.getCreateText(),
-				ColumnName.I.getCreateText(), getPrimaryKey());
-		
-		retval[1] = String.format("CREATE INDEX %2$s_%3$s ON %1$s.%2$s (%3$s)", 
-				keyspace, this, ColumnName.I );
+		String[] retval = new String[3];
+
+		StringBuilder sb = new StringBuilder("CREATE TABLE ").append(String.format("%s.%s (", keyspace, this));
+		for (ColumnName col : ColumnName.values()) {
+			sb.append(col.getCreateText()).append(", ");
+		}
+		sb.append("PRIMARY KEY ").append(getPrimaryKey()).append(")");
+		retval[0] = sb.toString();
+
+		retval[1] = String.format("CREATE INDEX %2$s_%3$s ON %1$s.%2$s (%3$s)", keyspace, this, ColumnName.I);
+		retval[2] = String.format("CREATE INDEX %2$s_%3$s ON %1$s.%2$s (%3$s)", keyspace, this, ColumnName.L);
 		return retval;
 	}
 }

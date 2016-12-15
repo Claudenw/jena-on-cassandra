@@ -26,11 +26,12 @@ import org.apache.jena.sparql.core.Quad;
  *
  */
 public enum ColumnName {
-	S("subject", "blob"), P("predicate", "blob"), O("object", "blob"), G("graph", "blob"), 
-	I( "obj_idx", "varint");
+	S("subject", "blob", 0), P("predicate", "blob", 1), O("object", "blob", 2), G("graph", "blob" ,3), 
+	L("obj_lang", "text", 4), D("obj_dtype", "text", 5), I( "obj_idx", "varint", -1);
 
 	private String name;
 	private String datatype;
+	private int queryPos;
 
 	/**
 	 * Constructor.
@@ -38,13 +39,25 @@ public enum ColumnName {
 	 * @param name
 	 *            The long name of the column
 	 */
-	ColumnName(String name, String datatype) {
+	ColumnName(String name, String datatype, int queryPos) {
 		this.name = name;
 		this.datatype = datatype;
+		this.queryPos = queryPos;
+	}
+	
+	/**
+	 * The position of this column in the standard query.
+	 * -1 if not included in the standard query.
+	 * @return the position fo this column in the standard query.  
+	 */
+	public int getQueryPos()
+	{
+		return queryPos;
 	}
 
 	/**
 	 * Returns the column long name.
+	 * @return the column long name.
 	 */
 	public String toString() {
 		return name;
@@ -91,6 +104,8 @@ public enum ColumnName {
 			return quad.asTriple().getMatchPredicate();
 		case O:
 		case I:
+		case L:
+		case D:
 			return quad.asTriple().getMatchObject();
 		case G:
 			return (Node.ANY.equals(quad.getGraph()) || Quad.isUnionGraph(quad.getGraph())) ? null : quad.getGraph();
@@ -105,13 +120,19 @@ public enum ColumnName {
 	 */
 	public String getScanValue()
 	{
-		if (datatype.equals( "blob"))
-		{
+		switch (this) {
+		case S:
+		case P:
+		case O:
+		case G:
+		default:
 			return String.format( "token(%s) >= %s", this, Long.MIN_VALUE);
-		}
-		else
-		{
+			
+		case I:
 			return String.format( "%s >= %s", this, Integer.MIN_VALUE);
+		case L:
+		case D:
+			return String.format( "%s >= %s", this, "a");		
 		}
 	}
 
