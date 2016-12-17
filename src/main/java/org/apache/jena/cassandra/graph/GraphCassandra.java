@@ -136,18 +136,21 @@ public class GraphCassandra extends GraphBase {
 		}
 
 		QueryPattern pattern = new QueryPattern( graph, t);
-		try {
-			Iterator<String> stmts = pattern.getDeleteStatements(connection, keyspace);
-			while( stmts.hasNext() )
-			{
-				String stmt = stmts.next();
-				LOG.debug(stmt);
-				connection.getSession().execute(stmt);
-			}	
-		} catch (NoHostAvailableException | QueryExecutionException | QueryValidationException e) {
-			LOG.error(e);
-			throw e;
-		}
+		pattern.doDelete( connection, keyspace);
+		
+//		QueryPattern pattern = new QueryPattern( graph, t);
+//		try {
+//			Iterator<String> stmts = pattern.getDeleteStatements(connection, keyspace);
+//			while( stmts.hasNext() )
+//			{
+//				String stmt = stmts.next();
+//				LOG.debug(stmt);
+//				connection.getSession().execute(stmt);
+//			}	
+//		} catch (NoHostAvailableException | QueryExecutionException | QueryValidationException e) {
+//			LOG.error(e);
+//			throw e;
+//		}
 
 	}
 

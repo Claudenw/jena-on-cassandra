@@ -124,7 +124,7 @@ public class ColIterator extends CascadingIterator<String> {
 	{
 		ColumnName reqColumn = tableName.getColumn(columnNumber);
 		
-		StringBuilder queryStr = new StringBuilder(String.format("SELECT %s FROM %s.%s WHERE ",
+		StringBuilder queryStr = new StringBuilder(String.format("SELECT DISTINCT %s FROM %s.%s WHERE ",
 				reqColumn,
 				keyspace, tableName));
 		if (columnNumber == 0)
@@ -140,6 +140,7 @@ public class ColIterator extends CascadingIterator<String> {
 				queryStr.append( String.format( "%s=%s", tableName.getColumn(i), colValues.get(i)));
 			}
 		}
+		
 		return	WrappedIterator.create(connection.getSession().execute(queryStr.toString()).iterator()).mapWith( new Function<Row,String>(){
 				@Override
 				public String apply(Row arg0) {

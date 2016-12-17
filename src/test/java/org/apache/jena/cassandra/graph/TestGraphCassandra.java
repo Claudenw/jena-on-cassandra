@@ -70,7 +70,7 @@ public class TestGraphCassandra {
 
 	@Before
 	public void setupTestGraphCassandra() throws ConfigurationException, TTransportException, IOException, InterruptedException {
-		connection = new CassandraConnection("localhost", cassandra.getNativePort());
+		connection = new CassandraConnection("localhost", cassandra.getSslStoragePort());
 		connection.getSession().execute(String.format("CREATE KEYSPACE %s WITH REPLICATION = { 'class' : 'SimpleStrategy', 'replication_factor' : 1 }", KEYSPACE));
 		connection.deleteTables(KEYSPACE);
 		connection.createTables(KEYSPACE);

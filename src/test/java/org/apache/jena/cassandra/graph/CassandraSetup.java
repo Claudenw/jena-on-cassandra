@@ -5,7 +5,9 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.URL;
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -20,11 +22,11 @@ public class CassandraSetup {
 	private final int storagePort;
 	private final int sslStoragePort;
 	private final int nativePort;
-	private final int rcpPort;
+	//private final int rcpPort;
 	private EmbeddedCassandraService cassandra;
 	//private final Thread thread;
 	
-	private final static String YAML_FMT = "%n%s: %s%s";
+	private final static String YAML_FMT = "%n%s: %s%n";
 	
 	public CassandraSetup() throws TTransportException, IOException {
 		tempDir = Files.createTempDir();
@@ -37,21 +39,22 @@ public class CassandraSetup {
 		FileOutputStream yamlOut = new FileOutputStream(yaml);
 		IOUtils.copy( url.openStream(), yamlOut );
 		
-		storagePort = findFreePort();
+		int[] ports = findFreePorts(3);
+		storagePort = ports[0];
 		yamlOut.write( String.format( YAML_FMT, "storage_port", storagePort).getBytes());
 
-		sslStoragePort = findFreePort();
+		sslStoragePort = ports[1];
 		yamlOut.write( String.format( YAML_FMT, "ssl_storage_port", sslStoragePort).getBytes());
 
-		nativePort = findFreePort();
+		nativePort = ports[2];
 		yamlOut.write( String.format( YAML_FMT, "native_transport_port", sslStoragePort).getBytes());
 
-		rcpPort = findFreePort();
-		yamlOut.write( String.format( YAML_FMT, "rcp_port", sslStoragePort).getBytes());
+//		rcpPort = ports[3];
+//		yamlOut.write( String.format( YAML_FMT, "rcp_port", sslStoragePort).getBytes());
 		
 		yamlOut.flush();
 		yamlOut.close();
-		System.setProperty("cassandra.config", yaml.toString());
+		System.setProperty("cassandra.config", yaml.toURI().toString());
 		
 		cassandra = new EmbeddedCassandraService();
 		cassandra.start();
@@ -99,28 +102,38 @@ public class CassandraSetup {
      * @throws IllegalStateException
      *             if unable to find a free port
      */
-    private static int findFreePort() {
+    private int[] findFreePorts(int num) {
+    	int[] retval = new int[num];
+    	List<ServerSocket> sockets = new ArrayList<ServerSocket>();
         ServerSocket socket = null;
         try {
-            socket = new ServerSocket(0);
+        	for (int i=0;i<num;i++)
+        	{
+        	socket = new ServerSocket(0);
             socket.setReuseAddress(true);
-            int port = socket.getLocalPort();
-            try {
-                socket.close();
-            } catch (IOException e) {
-                // Ignore IOException on close()
-            }
-            return port;
+            retval[i] = socket.getLocalPort();
+            sockets.add(socket);
+            socket = null;
+        	}
+            return retval;
         } catch (IOException e) {
         } finally {
+      
             if (socket != null) {
                 try {
                     socket.close();
                 } catch (IOException e) {
                 }
             }
+            for (ServerSocket s : sockets)
+            {
+            	try {
+                    s.close();
+                } catch (IOException e) {
+                }
+            }
         }
-        throw new IllegalStateException("Could not find a free TCP/IP port");
+        throw new IllegalStateException(String.format("Could not find %s free TCP/IP port(s)", num));
     }
 
 	public File getTempDir() {
@@ -139,9 +152,9 @@ public class CassandraSetup {
 		return nativePort;
 	}
 
-	public int getRcpPort() {
-		return rcpPort;
-	}
+//	public int getRcpPort() {
+//		return rcpPort;
+//	}
     
 //	/*
 //	 * @author Ran Tavory (rantav@gmail.com)

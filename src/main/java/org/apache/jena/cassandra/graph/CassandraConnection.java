@@ -29,7 +29,10 @@ import org.apache.commons.logging.LogFactory;
 import org.apache.jena.sparql.core.Quad;
 
 import com.datastax.driver.core.Cluster;
+import com.datastax.driver.core.ResultSet;
 import com.datastax.driver.core.Session;
+import com.datastax.driver.core.exceptions.InvalidQueryException;
+import com.datastax.driver.core.exceptions.QueryValidationException;
 
 /**
  * 
@@ -206,6 +209,22 @@ public class CassandraConnection implements Closeable {
 	 */
 	public static boolean needsFilter(String tableId) {
 		return NEEDS_FILTER.contains(tableId);
+	}
+	
+	public ResultSet executeQuery( String query )
+	{
+		if (LOG.isDebugEnabled())
+		{
+			LOG.debug( "executing query: "+query );
+		}
+		try {
+			return getSession().execute(query);
+		}
+		catch (QueryValidationException e)
+		{
+			LOG.error( String.format("Query Execution issue (%s) while executing: (%s)", e.getMessage(), query) , e);
+			throw e;
+		}
 	}
 
 }

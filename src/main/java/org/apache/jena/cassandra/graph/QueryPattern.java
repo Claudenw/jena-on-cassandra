@@ -21,11 +21,21 @@ package org.apache.jena.cassandra.graph;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.function.Predicate;
 
@@ -41,6 +51,7 @@ import org.apache.jena.graph.Triple;
 import org.apache.jena.riot.thrift.ThriftConvert;
 import org.apache.jena.riot.thrift.wire.RDF_Term;
 import org.apache.jena.sparql.core.Quad;
+import org.apache.jena.sparql.core.mem.HexTable;
 import org.apache.jena.util.iterator.ExtendedIterator;
 import org.apache.jena.util.iterator.NiceIterator;
 import org.apache.jena.util.iterator.WrappedIterator;
@@ -49,6 +60,7 @@ import org.apache.thrift.TException;
 import org.apache.thrift.TSerializer;
 
 import com.datastax.driver.core.ResultSet;
+import com.datastax.driver.core.ResultSetFuture;
 import com.datastax.driver.core.Row;
 import com.datastax.driver.core.utils.Bytes;
 
@@ -127,7 +139,6 @@ public class QueryPattern {
 	 */
 	public QueryPattern(Quad quad) {
 		this.quad = new Quad(normalizeGraph(quad.getGraph()), quad.asTriple());
-
 	}
 
 	/**
@@ -171,7 +182,7 @@ public class QueryPattern {
 
 	/**
 	 * Get a list of query values for the columns in the order specified in the
-	 * column names list. 
+	 * column names list.
 	 * 
 	 * @param colNames
 	 *            The column names to get the values for.
@@ -362,7 +373,7 @@ public class QueryPattern {
 			String suffix) {
 		try {
 			String query = getFindQuery(keyspace, extraWhere, suffix);
-			ResultSet rs = connection.getSession().execute(query);
+			ResultSet rs = connection.executeQuery(query);
 			ExtendedIterator<Quad> iter = WrappedIterator.create(rs.iterator()).mapWith(new RowToQuad())
 					.filterDrop(new FindNull<Quad>());
 			if (needsFilter()) {
@@ -384,23 +395,12 @@ public class QueryPattern {
 		 * object field. If the object field is a number then we need to use the
 		 * index to filter it.
 		 */
-		Node object = ColumnName.O.getMatch(quad);
-		Map<ColumnName, Object> extraValueMap = getObjectExtraValues(object);
-		if (extraValueMap.containsKey(ColumnName.I)) {
-			/* remove the data type column of numeric values */
-			extraValueMap.remove(ColumnName.D);
-		}
-
-		Quad tableQuad = quad;
-		if (extraValueMap.containsKey(ColumnName.I)) {
-			tableQuad = new Quad(quad.getGraph(), quad.getSubject(), quad.getPredicate(), Node.ANY);
-		}
-
-		TableName tableName = CassandraConnection.getTable(CassandraConnection.getId(tableQuad));
+		QueryInfo queryInfo = new QueryInfo();
+		
 		StringBuilder query = new StringBuilder(
-				String.format("SELECT %s FROM %s.%s", SELECT_COLUMNS, keyspace, tableName));
+				String.format("SELECT %s FROM %s.%s", SELECT_COLUMNS, keyspace, queryInfo.tableName));
 
-		StringBuilder whereClause = getWhereClause(tableName, tableQuad, extraValueMap);
+		StringBuilder whereClause = getWhereClause(queryInfo.tableName, queryInfo.tableQuad, queryInfo.extraValueMap);
 		if (extraWhere != null) {
 			whereClause.append((whereClause.length() > 0) ? " AND " : " WHERE ");
 			whereClause.append(extraWhere);
@@ -409,6 +409,14 @@ public class QueryPattern {
 
 		if (suffix != null) {
 			query.append(" ").append(suffix);
+		}
+		
+		if (! queryInfo.extraValueMap.isEmpty())
+		{
+			if (suffix == null || !suffix.toLowerCase().contains( "allow filtering"))
+			{
+				query.append( " ALLOW FILTERING");
+			}
 		}
 
 		LOG.debug(query);
@@ -507,6 +515,53 @@ public class QueryPattern {
 		return new DeleteGenerator(connection, keyspace, this);
 	}
 
+	public void doDelete(CassandraConnection connection, String keyspace) {
+		
+		ExtendedIterator<Quad> iter = doFind(connection, keyspace);
+		ConcurrentHashMap<Runnable,ResultSetFuture> map = new ConcurrentHashMap<>();
+		ForkJoinPool executor = new ForkJoinPool(4);
+		 
+		while (iter.hasNext()) {
+
+			Quad quad = iter.next();
+			Node object = ColumnName.O.getMatch(quad);
+			Map<ColumnName,Object> extraValueMap = getObjectExtraValues(object);
+			try {
+				StringBuilder sb = new StringBuilder("BEGIN BATCH").append(System.lineSeparator());
+				for (TableName tableName : CassandraConnection.getTableList()) {
+					String whereClause = getWhereClause(tableName, quad, extraValueMap).toString();
+					String cmd = String.format("DELETE FROM %s.%s %s;%n", keyspace, tableName.getName(), whereClause);
+					sb.append(cmd);
+				}
+				String query = sb.append("APPLY BATCH;").toString();
+				Runnable runner = new Runnable(){					
+					@Override
+					public void run() {
+						LOG.debug("delete completed");
+						map.remove(this);
+					}};
+					if (LOG.isDebugEnabled())
+					{
+						LOG.debug( "executing query: "+query );
+					}
+					ResultSetFuture rsf = connection.getSession().executeAsync( query );
+				map.put( runner, rsf);
+				rsf.addListener(runner, executor);
+			} catch (TException e) {
+				LOG.error(String.format("Error deleting %s", quad), e);
+			}
+
+		}
+
+		while (!map.isEmpty())
+		{
+			Thread.yield();
+		}
+		
+		executor.shutdown();
+
+	}
+
 	/**
 	 * Get a count of the triples that match the pattern for this table in the
 	 * specified keyspace.
@@ -522,8 +577,7 @@ public class QueryPattern {
 	public long getCount(CassandraConnection connection, String keyspace) throws TException {
 		TableName tableName = getTableName();
 		String query = String.format("SELECT count(*) FROM %s.%s %s", keyspace, tableName, getWhereClause(tableName));
-		LOG.debug(query);
-		ResultSet rs = connection.getSession().execute(query);
+		ResultSet rs = connection.executeQuery(query);
 		return rs.one().getLong(0);
 	}
 
@@ -572,9 +626,7 @@ public class QueryPattern {
 	 *             on encoding error.
 	 */
 	public void doInsert(CassandraConnection connection, String keyspace) throws TException {
-		String stmt = getInsertStatement(keyspace);
-		LOG.debug(stmt);
-		connection.getSession().execute(stmt);
+		connection.executeQuery( getInsertStatement(keyspace) );
 	}
 
 	/**
@@ -588,7 +640,8 @@ public class QueryPattern {
 	 *         null.
 	 */
 	private Map<ColumnName, Object> getObjectExtraValues(Node object) {
-		// use treemap to ensure column names are always returned in the same order.
+		// use treemap to ensure column names are always returned in the same
+		// order.
 		Map<ColumnName, Object> retval = new TreeMap<ColumnName, Object>();
 
 		if (object != null && object.isLiteral()) {
@@ -643,12 +696,11 @@ public class QueryPattern {
 				dser.deserialize(pred, row.getBytes(ColumnName.P.getQueryPos()).array());
 				dser.deserialize(graph, row.getBytes(ColumnName.G.getQueryPos()).array());
 
-				if (row.getString(ColumnName.L.getQueryPos()) == null) {
+				if (row.getString(ColumnName.D.getQueryPos()) == null) {
 					// not a literal just read the node
 					RDF_Term objTerm = new RDF_Term();
 					dser.deserialize(objTerm, row.getBytes(ColumnName.O.getQueryPos()).array());
 					obj = ThriftConvert.convert(objTerm);
-
 				} else {
 					String lex = new String(row.getBytes(ColumnName.O.getQueryPos()).array());
 					String lang = row.getString(ColumnName.L.getQueryPos());
@@ -696,6 +748,28 @@ public class QueryPattern {
 		@Override
 		public boolean test(T t) {
 			return t == null;
+		}
+	}
+
+	private class QueryInfo {
+		Quad tableQuad;
+		Map<ColumnName, Object> extraValueMap;
+		TableName tableName;
+
+		public QueryInfo() {
+			Node object = ColumnName.O.getMatch(quad);
+			extraValueMap = getObjectExtraValues(object);
+			if (extraValueMap.containsKey(ColumnName.I)) {
+				/* remove the data type column of numeric values */
+				extraValueMap.remove(ColumnName.D);
+			}
+
+			tableQuad = quad;
+			if (extraValueMap.containsKey(ColumnName.I)) {
+				tableQuad = new Quad(quad.getGraph(), quad.getSubject(), quad.getPredicate(), Node.ANY);
+			}
+
+			tableName = CassandraConnection.getTable(CassandraConnection.getId(tableQuad));
 		}
 	}
 }
