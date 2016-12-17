@@ -27,8 +27,8 @@ import java.util.List;
  *
  */
 public class TableName {
-	/* The array of columns */
-	private ColumnName cols[] = new ColumnName[4];
+	/* The array of primary key columns */
+	private ColumnName primaryKey[] = new ColumnName[4];
 	/*
 	 * The name of this table.
 	 */
@@ -43,11 +43,15 @@ public class TableName {
 	public TableName(String name) {
 		this.name = name.toUpperCase();
 		for (int i = 0; i < 4; i++) {
-			cols[i] = ColumnName.valueOf(this.name.substring(i, i + 1));
+			primaryKey[i] = ColumnName.valueOf(this.name.substring(i, i + 1));
 		}
 	}
 
-	public int getColumnCount() {
+	/**
+	 * The number of columns in the primary key.
+	 * @return the number of columns in the primary key.
+	 */
+	public int getPrimaryKeyColumnCount() {
 		return 4;
 	}
 
@@ -58,20 +62,20 @@ public class TableName {
 	 *            the column number to get.
 	 * @return the ColumnName at that position in the table definition.
 	 */
-	public ColumnName getColumn(int i) {
-		if (i < 0 || i > 3) {
+	public ColumnName getPrimaryKeyColumn(int i) {
+		if (i < 0 || i >= getPrimaryKeyColumnCount()) {
 			throw new IndexOutOfBoundsException();
 		}
-		return cols[i];
+		return primaryKey[i];
 	}
 
 	/**
-	 * Get the query columns for this table in order.
+	 * Get the primary key columns for this table in order.
 	 * 
-	 * @return The list of Columns for this table in order.
+	 * @return The list of Columns for the primary key for this table in order.
 	 */
-	public List<ColumnName> getQueryColumns() {
-		return Arrays.asList(cols);
+	public List<ColumnName> getPrimaryKeyColumns() {
+		return Arrays.asList(primaryKey);
 	}
 
 	@Override
@@ -96,9 +100,9 @@ public class TableName {
 	 * 
 	 * @return the key definition for the table.
 	 */
-	private String getPrimaryKey() {
+	private String getPrimaryKeyStr() {
 		StringBuilder sb = new StringBuilder("( ");
-		for (ColumnName columnName : cols) {
+		for (ColumnName columnName : primaryKey) {
 			if (sb.length() > 2) {
 				sb.append(", ");
 			}
@@ -113,7 +117,7 @@ public class TableName {
 	 * @return The column name for the partition key.
 	 */
 	public ColumnName getPartitionKey() {
-		return cols[0];
+		return primaryKey[0];
 	}
 
 	/**
@@ -130,7 +134,7 @@ public class TableName {
 		for (ColumnName col : ColumnName.values()) {
 			sb.append(col.getCreateText()).append(", ");
 		}
-		sb.append("PRIMARY KEY ").append(getPrimaryKey()).append(")");
+		sb.append("PRIMARY KEY ").append(getPrimaryKeyStr()).append(")");
 		retval[0] = sb.toString();
 
 		retval[1] = String.format("CREATE INDEX %2$s_%3$s ON %1$s.%2$s (%3$s)", keyspace, this, ColumnName.I);

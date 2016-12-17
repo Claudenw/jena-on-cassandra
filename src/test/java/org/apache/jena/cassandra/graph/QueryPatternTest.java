@@ -84,9 +84,9 @@ public class QueryPatternTest {
 	public void fullFindQueryTest() throws TException {
 		Quad q = new Quad(graph, subject, predicate, object);
 		QueryPattern qp = new QueryPattern(q);
-
+		QueryPattern.QueryInfo qi = qp.new QueryInfo(q);
 		// add extra space to match internal tests
-		String s = qp.getFindQuery("test", null, null) + " ";
+		String s = qp.getFindQuery("test", qi) + " ";
 		assertTrue("table missing", s.contains("test.SPOG"));
 		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
 		assertTrue("graph missing", s.contains(graphHex));
@@ -103,7 +103,9 @@ public class QueryPatternTest {
 		QueryPattern qp = new QueryPattern(q);
 
 		// add extra space to match internal tests
-		String s = qp.getFindQuery("test", null, "limit 1");
+		QueryPattern.QueryInfo qi = qp.new QueryInfo(q);
+		qi.suffix="limit 1";
+		String s = qp.getFindQuery("test", qi);
 		assertTrue("table missing", s.contains("test.SPOG"));
 		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
 		assertTrue("graph missing", s.contains(graphHex));
@@ -118,9 +120,10 @@ public class QueryPatternTest {
 	public void fullFindQueryExtraTest() throws TException {
 		Quad q = new Quad(graph, subject, predicate, object);
 		QueryPattern qp = new QueryPattern(q);
-
+		QueryPattern.QueryInfo qi = qp.new QueryInfo(q);
+		qi.extraWhere="something=Something";
 		// add extra space to match internal tests
-		String s = qp.getFindQuery("test", "something=Something", null);
+		String s = qp.getFindQuery("test", qi);
 		assertTrue("table missing", s.contains("test.SPOG"));
 		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
 		assertTrue("graph missing", s.contains(graphHex));
@@ -135,9 +138,11 @@ public class QueryPatternTest {
 	public void fullFindQueryExtraSuffixTest() throws TException {
 		Quad q = new Quad(graph, subject, predicate, object);
 		QueryPattern qp = new QueryPattern(q);
-
+		QueryPattern.QueryInfo qi = qp.new QueryInfo(q);
+		qi.extraWhere="something=Something";
+		qi.suffix="limit 1";
 		// add extra space to match internal tests
-		String s = qp.getFindQuery("test", "something=Something", "limit 1");
+		String s = qp.getFindQuery("test", qi);
 		assertTrue("table missing", s.contains("test.SPOG"));
 		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
 		assertTrue("graph missing", s.contains(graphHex));
@@ -154,7 +159,8 @@ public class QueryPatternTest {
 
 		Quad q = new Quad(graph, subject, predicate, node42);
 		QueryPattern qp = new QueryPattern(q);
-		String s = qp.getFindQuery("test", null, null) + " ";
+		QueryPattern.QueryInfo qi = qp.new QueryInfo(q);
+		String s = qp.getFindQuery("test", qi) + " ";
 		assertTrue("table missing", s.contains("test.GSPO"));
 		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
 		assertTrue("graph missing", s.contains(graphHex));
@@ -169,7 +175,8 @@ public class QueryPatternTest {
 
 		Quad q = new Quad(graph, subject, Node.ANY, node42);
 		QueryPattern qp = new QueryPattern(q);
-		String s = qp.getFindQuery("test", null, null) + " ";
+		QueryPattern.QueryInfo qi = qp.new QueryInfo(q);
+		String s = qp.getFindQuery("test", qi) + " ";
 		assertTrue("table missing", s.contains("test.GSPO"));
 		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
 		assertTrue("graph missing", s.contains(graphHex));
@@ -180,7 +187,8 @@ public class QueryPatternTest {
 
 		q = new Quad(graph, Node.ANY, predicate, node42);
 		qp = new QueryPattern(q);
-		s = qp.getFindQuery("test", null, null) + " ";
+		qi = qp.new QueryInfo(q);
+		s = qp.getFindQuery("test", qi) + " ";
 		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
 		assertTrue("table missing", s.contains("test.POGS"));
 		assertFalse("graph found", s.contains(graphHex));
@@ -191,7 +199,8 @@ public class QueryPatternTest {
 
 		q = new Quad(Node.ANY, subject, predicate, node42);
 		qp = new QueryPattern(q);
-		s = qp.getFindQuery("test", null, null) + " ";
+		qi = qp.new QueryInfo(q);
+		s = qp.getFindQuery("test", qi) + " ";
 		assertTrue("table missing", s.contains("test.SPOG"));
 		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
 		assertFalse("graph found", s.contains(graphHex));
@@ -207,7 +216,8 @@ public class QueryPatternTest {
 
 		Quad q = new Quad(graph, Node.ANY, Node.ANY, node42);
 		QueryPattern qp = new QueryPattern(q);
-		String s = qp.getFindQuery("test", null, null) + " ";
+		QueryPattern.QueryInfo qi = qp.new QueryInfo(q);
+		String s = qp.getFindQuery("test", qi) + " ";
 		assertTrue("table missing", s.contains("test.GSPO"));
 		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
 		assertTrue("graph missing", s.contains(graphHex));
@@ -218,7 +228,8 @@ public class QueryPatternTest {
 
 		q = new Quad(Node.ANY, subject, Node.ANY, node42);
 		qp = new QueryPattern(q);
-		s = qp.getFindQuery("test", null, null) + " ";
+		qi = qp.new QueryInfo(q);
+		s = qp.getFindQuery("test", qi) + " ";
 		assertTrue("table missing", s.contains("test.SPOG"));
 		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
 		assertFalse("graph found", s.contains(graphHex));
@@ -229,7 +240,8 @@ public class QueryPatternTest {
 
 		q = new Quad(Node.ANY, Node.ANY, predicate, node42);
 		qp = new QueryPattern(q);
-		s = qp.getFindQuery("test", null, null) + " ";
+		qi = qp.new QueryInfo(q);
+		s = qp.getFindQuery("test", qi) + " ";
 		assertTrue("table missing", s.contains("test.POGS"));
 		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
 		assertFalse("graph found", s.contains(graphHex));
@@ -244,7 +256,8 @@ public class QueryPatternTest {
 
 		Quad q = new Quad(Node.ANY, Node.ANY, Node.ANY, node42);
 		QueryPattern qp = new QueryPattern(q);
-		String s = qp.getFindQuery("test", null, null) + " ";
+		QueryPattern.QueryInfo qi = qp.new QueryInfo(q);
+		String s = qp.getFindQuery("test", qi) + " ";
 		assertTrue("table missing", s.contains("test.GSPO"));
 		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
 		assertFalse("graph found", s.contains(graphHex));
@@ -261,7 +274,8 @@ public class QueryPatternTest {
 
 		Quad q = new Quad(graph, subject, predicate, Node.ANY);
 		QueryPattern qp = new QueryPattern(q);
-		String s = qp.getFindQuery("test", null, null) + " ";
+		QueryPattern.QueryInfo qi = qp.new QueryInfo(q);
+		String s = qp.getFindQuery("test", qi) + " ";
 		assertTrue("table missing", s.contains("test.GSPO"));
 		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
 		assertTrue("graph missing", s.contains(graphHex));
@@ -272,7 +286,8 @@ public class QueryPatternTest {
 
 		q = new Quad(graph, subject, Node.ANY, object);
 		qp = new QueryPattern(q);
-		s = qp.getFindQuery("test", null, null) + " ";
+		qi = qp.new QueryInfo(q);
+		 s = qp.getFindQuery("test", qi) + " ";
 		assertTrue("table missing", s.contains("test.OSGP"));
 		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
 		assertTrue("graph missing", s.contains(graphHex));
@@ -283,7 +298,8 @@ public class QueryPatternTest {
 
 		q = new Quad(graph, Node.ANY, predicate, object);
 		qp = new QueryPattern(q);
-		s = qp.getFindQuery("test", null, null) + " ";
+		qi = qp.new QueryInfo(q);
+		s = qp.getFindQuery("test", qi) + " ";
 		assertTrue("table missing", s.contains("test.POGS"));
 		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
 		assertTrue("graph missing", s.contains(graphHex));
@@ -294,7 +310,8 @@ public class QueryPatternTest {
 
 		q = new Quad(Node.ANY, subject, predicate, object);
 		qp = new QueryPattern(q);
-		s = qp.getFindQuery("test", null, null) + " ";
+		qi = qp.new QueryInfo(q);
+		s = qp.getFindQuery("test", qi) + " ";
 		assertTrue("table missing", s.contains("test.SPOG"));
 		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
 		assertFalse("graph found", s.contains(graphHex));
@@ -310,7 +327,8 @@ public class QueryPatternTest {
 
 		Quad q = new Quad(graph, subject, Node.ANY, Node.ANY);
 		QueryPattern qp = new QueryPattern(q);
-		String s = qp.getFindQuery("test", null, null) + " ";
+		QueryPattern.QueryInfo qi = qp.new QueryInfo(q);
+		String s = qp.getFindQuery("test", qi) + " ";
 		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
 		assertTrue("table missing", s.contains("test.GSPO"));
 		assertTrue("graph missing", s.contains(graphHex));
@@ -322,7 +340,8 @@ public class QueryPatternTest {
 		/* this one need a filter */
 		q = new Quad(graph, Node.ANY, predicate, Node.ANY);
 		qp = new QueryPattern(q);
-		s = qp.getFindQuery("test", null, null) + " ";
+		qi = qp.new QueryInfo(q);
+		 s = qp.getFindQuery("test", qi) + " ";
 		assertTrue("table missing", s.contains("test.POGS"));
 		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
 		assertFalse("graph found", s.contains(graphHex));
@@ -333,7 +352,8 @@ public class QueryPatternTest {
 
 		q = new Quad(Node.ANY, subject, predicate, Node.ANY);
 		qp = new QueryPattern(q);
-		s = qp.getFindQuery("test", null, null) + " ";
+		qi = qp.new QueryInfo(q);
+		s = qp.getFindQuery("test", qi) + " ";
 		assertTrue("table missing", s.contains("test.SPOG"));
 		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
 		assertFalse("graph found", s.contains(graphHex));
@@ -347,7 +367,8 @@ public class QueryPatternTest {
 		 */
 		q = new Quad(graph, Node.ANY, Node.ANY, object);
 		qp = new QueryPattern(q);
-		s = qp.getFindQuery("test", null, null) + " ";
+		qi = qp.new QueryInfo(q);
+		 s = qp.getFindQuery("test", qi) + " ";
 		assertTrue("table missing", s.contains("test.OSGP"));
 		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
 		assertFalse("graph found", s.contains(graphHex));
@@ -358,7 +379,8 @@ public class QueryPatternTest {
 
 		q = new Quad(Node.ANY, subject, Node.ANY, object);
 		qp = new QueryPattern(q);
-		s = qp.getFindQuery("test", null, null) + " ";
+		qi = qp.new QueryInfo(q);
+		 s = qp.getFindQuery("test", qi) + " ";
 		assertTrue("table missing", s.contains("test.OSGP"));
 		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
 		assertFalse("graph found", s.contains(graphHex));
@@ -369,7 +391,8 @@ public class QueryPatternTest {
 
 		q = new Quad(Node.ANY, Node.ANY, predicate, object);
 		qp = new QueryPattern(q);
-		s = qp.getFindQuery("test", null, null) + " ";
+		qi = qp.new QueryInfo(q);
+		 s = qp.getFindQuery("test", qi) + " ";
 		assertTrue("table missing", s.contains("test.POGS"));
 		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
 		assertFalse("graph found", s.contains(graphHex));
@@ -385,7 +408,8 @@ public class QueryPatternTest {
 
 		Quad q = new Quad(Node.ANY, Node.ANY, Node.ANY, object);
 		QueryPattern qp = new QueryPattern(q);
-		String s = qp.getFindQuery("test", null, null) + " ";
+		QueryPattern.QueryInfo qi = qp.new QueryInfo(q);
+		String s = qp.getFindQuery("test", qi) + " ";
 		assertTrue("table missing", s.contains("test.OSGP"));
 		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
 		assertFalse("graph found", s.contains(graphHex));
@@ -396,7 +420,8 @@ public class QueryPatternTest {
 
 		q = new Quad(Node.ANY, Node.ANY, predicate, Node.ANY);
 		qp = new QueryPattern(q);
-		s = qp.getFindQuery("test", null, null) + " ";
+		qi = qp.new QueryInfo(q);
+		 s = qp.getFindQuery("test", qi) + " ";
 		assertTrue("table missing", s.contains("test.POGS"));
 		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
 		assertFalse("graph found", s.contains(graphHex));
@@ -407,7 +432,8 @@ public class QueryPatternTest {
 
 		q = new Quad(Node.ANY, subject, Node.ANY, Node.ANY);
 		qp = new QueryPattern(q);
-		s = qp.getFindQuery("test", null, null) + " ";
+		qi = qp.new QueryInfo(q);
+		 s = qp.getFindQuery("test", qi) + " ";
 		assertTrue("table missing", s.contains("test.SPOG"));
 		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
 		assertFalse("graph found", s.contains(graphHex));
@@ -418,7 +444,8 @@ public class QueryPatternTest {
 
 		q = new Quad(graph, Node.ANY, Node.ANY, Node.ANY);
 		qp = new QueryPattern(q);
-		s = qp.getFindQuery("test", null, null) + " ";
+		qi = qp.new QueryInfo(q);
+		 s = qp.getFindQuery("test", qi) + " ";
 		assertTrue("table missing", s.contains("test.GSPO"));
 		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
 		assertTrue("graph missing", s.contains(graphHex));
@@ -434,7 +461,8 @@ public class QueryPatternTest {
 
 		Quad q = new Quad(Node.ANY, Node.ANY, Node.ANY, Node.ANY);
 		QueryPattern qp = new QueryPattern(q);
-		String s = qp.getFindQuery("test", null, null) + " ";
+		QueryPattern.QueryInfo qi = qp.new QueryInfo(q);
+		String s = qp.getFindQuery("test", qi) + " ";
 		assertTrue("table missing", s.contains("test.GSPO"));
 		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
 		assertFalse("graph found", s.contains(graphHex));

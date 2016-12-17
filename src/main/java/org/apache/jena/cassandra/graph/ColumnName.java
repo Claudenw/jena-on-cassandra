@@ -29,8 +29,11 @@ public enum ColumnName {
 	S("subject", "blob", 0), P("predicate", "blob", 1), O("object", "blob", 2), G("graph", "blob" ,3), 
 	L("obj_lang", "text", 4), D("obj_dtype", "text", 5), I( "obj_idx", "varint", -1);
 
+	/* the long name of the column */
 	private String name;
+	/* the cassandra data type of the column */
 	private String datatype;
+	/* the query position in the standard query */
 	private int queryPos;
 
 	/**

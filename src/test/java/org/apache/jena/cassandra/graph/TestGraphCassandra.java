@@ -48,7 +48,7 @@ public class TestGraphCassandra {
 	private CassandraConnection connection;
 	private static final String KEYSPACE = "test";
 	private static File tempDir;
-	private static CassandraSetup cassandra;
+	//private static CassandraSetup cassandra;
 
 	/**
 	 * Set embedded cassandra up and spawn it in a new thread.
@@ -59,19 +59,19 @@ public class TestGraphCassandra {
 	 */
 	@BeforeClass
 	public static void before() throws Exception, InterruptedException {
-		cassandra = new CassandraSetup();
+		//cassandra = new CassandraSetup();
 	}
 
 
 	@AfterClass
 	public static void after() {
-		cassandra.shutdown();
+		//cassandra.shutdown();
 	}
 
 	@Before
 	public void setupTestGraphCassandra() throws ConfigurationException, TTransportException, IOException, InterruptedException {
-		connection = new CassandraConnection("localhost", cassandra.getSslStoragePort());
-		connection.getSession().execute(String.format("CREATE KEYSPACE %s WITH REPLICATION = { 'class' : 'SimpleStrategy', 'replication_factor' : 1 }", KEYSPACE));
+		connection = new CassandraConnection("localhost");//, cassandra.getSslStoragePort());
+		connection.getSession().execute(String.format("CREATE KEYSPACE IF NOT EXISTS %s WITH REPLICATION = { 'class' : 'SimpleStrategy', 'replication_factor' : 1 }", KEYSPACE));
 		connection.deleteTables(KEYSPACE);
 		connection.createTables(KEYSPACE);
 	}
@@ -113,8 +113,6 @@ public class TestGraphCassandra {
 		public Graph[] getNotDependsOn(Graph g) {
 			return new Graph[] { createNewGraph() };
 		}
-		
-		
 
 	};
 

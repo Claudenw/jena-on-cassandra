@@ -64,7 +64,7 @@ public class ColIterator extends CascadingIterator<String> {
 		this.keyspace = keyspace;
 		this.tableName = tableName;
 		this.columnNumber=columnNumber;
-		this.colName = tableName.getColumn(columnNumber);
+		this.colName = tableName.getPrimaryKeyColumn(columnNumber);
 		this.colValues = colValues;
 
 		if (colValues.get(columnNumber) == null)
@@ -122,7 +122,7 @@ public class ColIterator extends CascadingIterator<String> {
 	 */
 	protected Iterator<String> getColumnIterator(int columnNumber, List<String> colValues, TableName tableName)
 	{
-		ColumnName reqColumn = tableName.getColumn(columnNumber);
+		ColumnName reqColumn = tableName.getPrimaryKeyColumn(columnNumber);
 		
 		StringBuilder queryStr = new StringBuilder(String.format("SELECT DISTINCT %s FROM %s.%s WHERE ",
 				reqColumn,
@@ -137,7 +137,7 @@ public class ColIterator extends CascadingIterator<String> {
 				{
 					queryStr.append( " AND ");
 				}
-				queryStr.append( String.format( "%s=%s", tableName.getColumn(i), colValues.get(i)));
+				queryStr.append( String.format( "%s=%s", tableName.getPrimaryKeyColumn(i), colValues.get(i)));
 			}
 		}
 		

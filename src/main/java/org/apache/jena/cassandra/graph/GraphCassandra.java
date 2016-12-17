@@ -117,13 +117,6 @@ public class GraphCassandra extends GraphBase {
 		QueryPattern pattern = new QueryPattern( graph, t);
 		try {
 			pattern.doInsert(connection, keyspace);
-//			String values = pattern.getValues();
-//			for (TableName tbl : CassandraConnection.getTableList()) {
-//				String stmt = String.format("INSERT INTO %s.%s (subject, predicate, object, graph) VALUES %s", keyspace,
-//						tbl, values);
-//				LOG.debug(stmt);
-//				connection.getSession().execute(stmt);
-//			}
 		} catch (TException e) {
 			LOG.error("bad values", e);
 		}
@@ -138,20 +131,6 @@ public class GraphCassandra extends GraphBase {
 		QueryPattern pattern = new QueryPattern( graph, t);
 		pattern.doDelete( connection, keyspace);
 		
-//		QueryPattern pattern = new QueryPattern( graph, t);
-//		try {
-//			Iterator<String> stmts = pattern.getDeleteStatements(connection, keyspace);
-//			while( stmts.hasNext() )
-//			{
-//				String stmt = stmts.next();
-//				LOG.debug(stmt);
-//				connection.getSession().execute(stmt);
-//			}	
-//		} catch (NoHostAvailableException | QueryExecutionException | QueryValidationException e) {
-//			LOG.error(e);
-//			throw e;
-//		}
-
 	}
 
 	@Override
@@ -188,24 +167,9 @@ public class GraphCassandra extends GraphBase {
 	}
 
 	@Override
-	public boolean isEmpty() {
+	public boolean isEmpty() {		
 		QueryPattern pattern = new QueryPattern( graph, Triple.ANY);
-		TableName tableName = pattern.getTableName();
-		ColumnName columnName = tableName.getPartitionKey();
-		StringBuilder whereClause = null;
-		try {
-			whereClause = pattern.getWhereClause();
-		} catch (TException e) {
-			LOG.error("Error building where clause", e);
-			whereClause = new StringBuilder();
-		}
-		whereClause.append(whereClause.length() == 0 ? " WHERE " : " AND ")
-				.append(String.format("token(%s)>%s", columnName, Long.MIN_VALUE));
-		String query = String.format("SELECT token(%s) FROM %s.%s %s LIMIT 1", columnName, keyspace, tableName,
-				whereClause);
-		LOG.debug(query);
-		ResultSet rs = connection.getSession().execute(query);
-		return rs.one() == null;
+		return ! pattern.doContains(connection, keyspace);
 	}
 
 	@Override

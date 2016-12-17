@@ -52,7 +52,7 @@ public class DeleteGenerator extends CascadingIterator<TableName> {
 	
 	@Override
 	protected Iterator<String> createSubIter() {
-		List<String> colValues = Collections.unmodifiableList(pattern.getQueryValues(thisValue.getQueryColumns()));			
+		List<String> colValues = Collections.unmodifiableList(pattern.getQueryValues(thisValue.getPrimaryKeyColumns()));			
 		return new ColIterator( connection, keyspace, thisValue, 0, colValues );
 	}
 	
