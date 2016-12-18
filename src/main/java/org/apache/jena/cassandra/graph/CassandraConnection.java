@@ -62,11 +62,11 @@ public class CassandraConnection implements Closeable {
 	/*
 	 * List of tables named by key order
 	 */
-	private static final TableName SPOG = new TableName("SPOG");
-	private static final TableName POGS = new TableName("POGS");
-	private static final TableName OSGP = new TableName("OSGP");
-	private static final TableName GSPO = new TableName("GSPO");
-  private static final TableName[] TABLES = { SPOG, POGS, OSGP, GSPO };	
+	public static final TableName SPOG = new TableName("SPOG");
+	public static final TableName POGS = new TableName("POGS");
+	public static final TableName OSGP = new TableName("OSGP");
+	public static final TableName GSPO = new TableName("GSPO");
+	public static final TableName[] TABLES = { SPOG, POGS, OSGP, GSPO };	
 
 	private static final Collection<String> NEEDS_FILTER = Arrays.asList("_p_g", "__og");
 
@@ -86,7 +86,7 @@ public class CassandraConnection implements Closeable {
 		TABLE_MAP.put("_po_", POGS);
 		TABLE_MAP.put("_p_g", POGS); // + filter or GSPO + filter
 		TABLE_MAP.put("_p__", POGS);
-		TABLE_MAP.put("__og", OSGP); // + filter or GSPO + filter
+		TABLE_MAP.put("__og", OSGP); // + filter 
 		TABLE_MAP.put("__o_", OSGP);
 		TABLE_MAP.put("___g", GSPO);
 		TABLE_MAP.put("____", GSPO); // or any other

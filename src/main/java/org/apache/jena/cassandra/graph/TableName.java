@@ -128,7 +128,7 @@ public class TableName {
 	 * @return an array of table and index creation strings.
 	 */
 	public String[] getCreateTableStatements(String keyspace) {
-		String[] retval = new String[3];
+		String[] retval = new String[4];
 
 		StringBuilder sb = new StringBuilder("CREATE TABLE ").append(String.format("%s.%s (", keyspace, this));
 		for (ColumnName col : ColumnName.values()) {
@@ -138,7 +138,8 @@ public class TableName {
 		retval[0] = sb.toString();
 
 		retval[1] = String.format("CREATE INDEX %2$s_%3$s ON %1$s.%2$s (%3$s)", keyspace, this, ColumnName.I);
-		retval[2] = String.format("CREATE INDEX %2$s_%3$s ON %1$s.%2$s (%3$s, %4$s)", keyspace, this, ColumnName.V, ColumnName.D);
+		retval[2] = String.format("CREATE INDEX %2$s_%3$s ON %1$s.%2$s (%3$s)", keyspace, this, ColumnName.V);
+		retval[3] = String.format("CREATE INDEX %2$s_%3$s ON %1$s.%2$s (%3$s)", keyspace, this, ColumnName.D);
 		return retval;
 	}
 }

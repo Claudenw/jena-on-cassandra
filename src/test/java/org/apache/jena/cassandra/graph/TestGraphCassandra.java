@@ -20,12 +20,7 @@ package org.apache.jena.cassandra.graph;
 
 import java.io.File;
 import java.io.IOException;
-import java.net.URL;
-
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.io.util.FileUtils;
-import org.apache.cassandra.service.EmbeddedCassandraService;
-import org.apache.jena.ext.com.google.common.io.Files;
 import org.apache.jena.graph.Graph;
 import org.apache.jena.graph.NodeFactory;
 import org.apache.jena.graph.Triple;

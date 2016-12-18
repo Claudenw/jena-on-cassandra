@@ -23,21 +23,11 @@ import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Executor;
 import java.util.concurrent.ForkJoinPool;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.function.Predicate;
 
@@ -53,18 +43,15 @@ import org.apache.jena.graph.Triple;
 import org.apache.jena.riot.thrift.ThriftConvert;
 import org.apache.jena.riot.thrift.wire.RDF_Term;
 import org.apache.jena.sparql.core.Quad;
-import org.apache.jena.sparql.core.mem.HexTable;
 import org.apache.jena.util.iterator.ExtendedIterator;
 import org.apache.jena.util.iterator.NiceIterator;
 import org.apache.jena.util.iterator.WrappedIterator;
 import org.apache.thrift.TDeserializer;
 import org.apache.thrift.TException;
-import org.apache.thrift.TSerializer;
-
 import com.datastax.driver.core.ResultSet;
 import com.datastax.driver.core.ResultSetFuture;
 import com.datastax.driver.core.Row;
-import com.datastax.driver.core.utils.Bytes;
+import com.datastax.driver.core.exceptions.InvalidQueryException;
 
 /**
  * Class that builds a query based on the graph Node and the triple pattern or a
@@ -89,8 +76,7 @@ public class QueryPattern {
 		}
 		StringBuilder sb = new StringBuilder();
 		for (ColumnName c : cols) {
-			if (c == null)
-			{
+			if (c == null) {
 				break;
 			}
 			if (sb.length() > 0) {
@@ -106,7 +92,7 @@ public class QueryPattern {
 	 * The descriptive quad
 	 */
 	private final Quad quad;
-	
+
 	/*
 	 * The connection to the cassandra db
 	 */
@@ -181,20 +167,21 @@ public class QueryPattern {
 
 	/**
 	 * Get the query info for this QueryPattern
+	 * 
 	 * @return the query info
 	 */
-	public QueryInfo getQueryInfo()
-	{
+	public QueryInfo getQueryInfo() {
 		return new QueryInfo(quad);
 	}
 
 	/**
 	 * Get the query info for the specified quad
-	 * @param quad the quad to get the query info for.
+	 * 
+	 * @param quad
+	 *            the quad to get the query info for.
 	 * @return the query info
 	 */
-	public QueryInfo getQueryInfo(Quad quad)
-	{
+	public QueryInfo getQueryInfo(Quad quad) {
 		return new QueryInfo(quad);
 	}
 
@@ -207,79 +194,63 @@ public class QueryPattern {
 	 *            The quad to extract the data from.
 	 * @return the map of column name to data
 	 */
-	public Map<ColumnName,Object> getQueryValues(Quad quad) {
-		
+	public Map<ColumnName, Object> getQueryValues(Quad quad) {
+
 		Map<ColumnName, Object> retval = new TreeMap<ColumnName, Object>();
 
-//		if (object != null && object.isLiteral()) {
-//			if (object.getLiteralDatatype() instanceof XSDBaseNumericType) {
-//				retval.put(ColumnName.I, new BigDecimal(object.getLiteral().getLexicalForm()));
-//			}
-//			retval.put(ColumnName.D, String.format("'%s'", object.getLiteralDatatypeURI()));
-//			String lang = object.getLiteralLanguage();
-//			if (!StringUtils.isBlank(lang)) {
-//				retval.put(ColumnName.L, String.format("'%s'", lang.toLowerCase()));
-//			}
-//		}
 		Node n = null;
-		for (ColumnName colName : ColumnName.values()) {		
-				try {
-					switch (colName) {
-					case S:
-					case P:
-					case G:
-					case O:
-						n = colName.getMatch(quad);
-						if (n != null)
-						{
-							retval.put(colName,connection.valueOf(n));
+		for (ColumnName colName : ColumnName.values()) {
+			try {
+				switch (colName) {
+				case S:
+				case P:
+				case G:
+				case O:
+					n = colName.getMatch(quad);
+					if (n != null) {
+						retval.put(colName, connection.valueOf(n));
+					}
+					break;
+				case V:
+					n = ColumnName.O.getMatch(quad);
+					if (n != null) {
+						if (n.isLiteral()) {
+							retval.put(colName, n.getLiteralLexicalForm());
 						}
-						break;
-					case V:
-						n = ColumnName.O.getMatch(quad);
-						if (n != null)
-						{
-							if (n.isLiteral())
-							{
-								retval.put(colName, n.getLiteralLexicalForm());
-							}
-						}
-						break;
-					case I:
-						n = colName.getMatch(quad);
-						if (n != null)
-						{
+					}
+					break;
+				case I:
+					n = colName.getMatch(quad);
+					if (n != null) {
 						if (n.isLiteral() && n.getLiteralDatatype() instanceof XSDBaseNumericType) {
 							retval.put(colName, new BigDecimal(n.getLiteral().getLexicalForm()));
 						}
-						}
-						break;
-					case L:
-						n = colName.getMatch(quad);
-						if (n != null)
-						{
-						if (n.isLiteral() && StringUtils.isNotEmpty(n.getLiteralLanguage())) {
-							retval.put(colName,n.getLiteralLanguage());
-						}
-						}
-						break;
-					case D:
-						n = colName.getMatch(quad);
-						if (n != null)
-						{
-						if (n.isLiteral()) {
-							retval.put(colName,n.getLiteralDatatypeURI());
-						}
-						}
-						break;
-					default:
-						LOG.warn( "Unhandled column type: "+colName);
 					}
-
-				} catch (TException e) {
-					LOG.error( String.format( "Error encoding %s: %s", colName, n), e);
+					break;
+				case L:
+					n = colName.getMatch(quad);
+					if (n != null) {
+						if (n.isLiteral() && StringUtils.isNotEmpty(n.getLiteralLanguage())) {
+							retval.put(colName, n.getLiteralLanguage());
+						}
+					}
+					break;
+				case D:
+					n = colName.getMatch(quad);
+					if (n != null) {
+						if (n.isLiteral()) {
+							retval.put(colName, n.getLiteralDatatypeURI());
+						}
+					}
+					break;
+				default:
+					LOG.warn("Unhandled column type: " + colName);
 				}
-			
+
+			} catch (TException e) {
+				LOG.error(String.format("Error encoding %s: %s", colName, n), e);
+			}
+
 		}
 		return retval;
 	}
@@ -293,7 +264,6 @@ public class QueryPattern {
 		return new ResultFilter(quad);
 	}
 
-
 	/**
 	 * Get the where clause for the table. The where clause for the table must
 	 * not skip any column names in the key, so this method returns a clause
@@ -305,7 +275,7 @@ public class QueryPattern {
 	 * @throws TException
 	 *             on serialization error.
 	 */
-	private StringBuilder getWhereClause(TableName tableName) throws TException {
+	private QueryInfo.WhereClause getWhereClause(TableName tableName) throws TException {
 		QueryInfo queryInfo = new QueryInfo(quad);
 		queryInfo.tableName = tableName;
 		queryInfo.tableQuad = quad;
@@ -354,36 +324,35 @@ public class QueryPattern {
 	 *            null.
 	 * @return An ExtendedIterator over the quads.
 	 */
-	public ExtendedIterator<Quad> doFind(String keyspace, String extraWhere,
-			String suffix) {
+	public ExtendedIterator<Quad> doFind(String keyspace, String extraWhere, String suffix) {
 		try {
 			QueryInfo queryInfo = new QueryInfo(quad);
 			queryInfo.extraWhere = extraWhere;
 			queryInfo.suffix = suffix;
-			/* we always remove the Language from the where clause in a query as we 
-			 * handle that below.  If the index type is included in the extra values then
-			 * we also remove the data type from the where clause so we can match byte, int and long 
-			 * as the same value.
-			 */		
+			/*
+			 * we always remove the Language from the where clause in a query as
+			 * we handle that below. If the index type is included in the extra
+			 * values then we also remove the data type from the where clause so
+			 * we can match byte, int and long as the same value.
+			 */
 			if (queryInfo.values.containsKey(ColumnName.I)) {
 				queryInfo.extraValueFilter = Arrays.asList(ColumnName.L, ColumnName.D, ColumnName.V);
-			}
-			else
-			{
+			} else {
 				queryInfo.extraValueFilter = Arrays.asList(ColumnName.L);
 			}
-			
+
 			/**
-			 * If the object is a literal remove the object from query consideration leaving just the values 
-			 * extract from it and change the tablename so that we query appropriately.
+			 * If the object is a literal remove the object from query
+			 * consideration leaving just the values extract from it and change
+			 * the tablename so that we query appropriately.
 			 */
 			if (queryInfo.objectIsLiteral()) {
 				queryInfo.tableQuad = new Quad(quad.getGraph(), quad.getSubject(), quad.getPredicate(), Node.ANY);
 				queryInfo.values.remove(ColumnName.O);
 				queryInfo.tableName = CassandraConnection.getTable(CassandraConnection.getId(queryInfo.tableQuad));
 			}
-			String query = getFindQuery( keyspace, queryInfo);
-			ResultSet rs = connection.executeQuery(query);
+			Query query = getFindQuery(keyspace, queryInfo);
+			ResultSet rs = connection.executeQuery(query.text.toString());
 			ExtendedIterator<Quad> iter = WrappedIterator.create(rs.iterator()).mapWith(new RowToQuad())
 					.filterDrop(new FindNull<Quad>());
 			/*
@@ -394,12 +363,16 @@ public class QueryPattern {
 			if (queryInfo.values.containsKey(ColumnName.L)) {
 				iter = iter.filterKeep(new LanguageFilter(queryInfo.values.get(ColumnName.L)));
 			}
-			if (needsFilter()) {
+			if (query.needsFilter) {
 				iter = iter.filterKeep(getQueryFilter());
 			}
 			return iter;
 		} catch (TException e) {
-			LOG.error("Bad query", e);
+			LOG.error("Bad query: "+e.getMessage(), e);
+			return NiceIterator.emptyIterator();
+		} catch (InvalidQueryException e)
+		{
+			LOG.error("Bad query: "+e.getMessage(), e);
 			return NiceIterator.emptyIterator();
 		}
 	}
@@ -407,36 +380,33 @@ public class QueryPattern {
 	/*
 	 * package private for testing
 	 */
-	/* package private */ String getFindQuery(String keyspace, QueryInfo queryInfo) throws TException {
+	/* package private */ Query getFindQuery(String keyspace, QueryInfo queryInfo) throws TException {
 		/*
 		 * Adjust the table name based on the presence of the index on the
 		 * object field. If the object field is a number then we need to use the
 		 * index to filter it.
 		 */
 
-		StringBuilder query = new StringBuilder(
+		Query query = new Query();
+		query.text = new StringBuilder(
 				String.format("SELECT %s FROM %s.%s", SELECT_COLUMNS, keyspace, queryInfo.tableName));
 
-		StringBuilder whereClause = queryInfo.getWhereClause();
-		if (queryInfo.extraWhere != null) {
-			whereClause.append((whereClause.length() > 0) ? " AND " : " WHERE ");
-			whereClause.append(queryInfo.extraWhere);
-		}
-		query.append(whereClause);
+		QueryInfo.WhereClause whereClause = queryInfo.getWhereClause();
+		
+		query.setWhere(whereClause);
 
 		if (queryInfo.suffix != null) {
-			query.append(" ").append(queryInfo.suffix);
+			query.text.append(" ").append(queryInfo.suffix);
 		}
 
-		
-		if ( queryInfo.hasNonPrimaryData() ) {
+		if (queryInfo.hasNonPrimaryData()) {
 			if (queryInfo.suffix == null || !queryInfo.suffix.toLowerCase().contains("allow filtering")) {
-				query.append(" ALLOW FILTERING");
+				query.text.append(" ALLOW FILTERING");
 			}
 		}
 
 		LOG.debug(query);
-		return query.toString();
+		return query;
 	}
 
 	/**
@@ -447,12 +417,7 @@ public class QueryPattern {
 	 * @return True the quad is in the database, false otherwise.
 	 */
 	public boolean doContains(String keyspace) {
-		ExtendedIterator<Quad> iter = null;
-		if (needsFilter()) {
-			iter = doFind( keyspace);
-		} else {
-			iter = doFind( keyspace, null, "LIMIT 1");
-		}
+		ExtendedIterator<Quad> iter = doFind(keyspace);
 		try {
 			return iter.hasNext();
 		} finally {
@@ -470,19 +435,19 @@ public class QueryPattern {
 	 * @throws TException
 	 *             on serialization error.
 	 */
-	public StringBuilder getWhereClause() throws TException {
+	public QueryInfo.WhereClause getWhereClause() throws TException {
 		return getWhereClause(getTableName());
 	}
 
-	/**
-	 * Returns true if the resulting query needs a filter to return the proper
-	 * values.
-	 * 
-	 * @return true if the query needs a filter.
-	 */
-	public boolean needsFilter() {
-		return CassandraConnection.needsFilter(getId());
-	}
+//	/**
+//	 * Returns true if the resulting query needs a filter to return the proper
+//	 * values.
+//	 * 
+//	 * @return true if the query needs a filter.
+//	 */
+//	public boolean needsFilter() {
+//		return CassandraConnection.needsFilter(getId());
+//	}
 
 	/**
 	 * Returns true if the table query needs a filter.
@@ -502,9 +467,8 @@ public class QueryPattern {
 		}
 		return false;
 	}
-	
-	/* package private */ String getDeleteStatement( String keyspace, Quad quad ) throws TException
-	{
+
+	/* package private */ String getDeleteStatement(String keyspace, Quad quad) throws TException {
 		if (ColumnName.S.getMatch(quad) == null || ColumnName.P.getMatch(quad) == null
 				|| ColumnName.O.getMatch(quad) == null || ColumnName.G.getMatch(quad) == null) {
 			throw new IllegalArgumentException(
@@ -512,25 +476,28 @@ public class QueryPattern {
 		}
 		QueryInfo queryInfo = new QueryInfo(quad);
 		queryInfo.extraValueFilter = queryInfo.getNonKeyColumns();
-		
-			StringBuilder sb = new StringBuilder("BEGIN BATCH").append(System.lineSeparator());
-			for (TableName tableName : CassandraConnection.getTableList()) {
-				queryInfo.tableName = tableName;
-				String whereClause = queryInfo.getWhereClause().toString();
-				String cmd = String.format("DELETE FROM %s.%s %s;%n", keyspace, queryInfo.tableName.getName(),
-						whereClause);
-				sb.append(cmd);
-			}
-			return sb.append("APPLY BATCH;").toString();
+
+		StringBuilder sb = new StringBuilder("BEGIN BATCH").append(System.lineSeparator());
+		for (TableName tableName : CassandraConnection.getTableList()) {
+			queryInfo.tableName = tableName;
+			String whereClause = queryInfo.getWhereClause().toString();
+			String cmd = String.format("DELETE FROM %s.%s %s;%n", keyspace, queryInfo.tableName.getName(), whereClause);
+			sb.append(cmd);
+		}
+		return sb.append("APPLY BATCH;").toString();
 	}
+
 	/**
 	 * Delete the row(s) from the database.
-	 * @param connection the cassandra connection to use.
-	 * @param keyspace The keyspace to delete from.
+	 * 
+	 * @param connection
+	 *            the cassandra connection to use.
+	 * @param keyspace
+	 *            The keyspace to delete from.
 	 */
 	public void doDelete(String keyspace) {
 
-		ExtendedIterator<Quad> iter = doFind( keyspace);
+		ExtendedIterator<Quad> iter = doFind(keyspace);
 		ConcurrentHashMap<Runnable, ResultSetFuture> map = new ConcurrentHashMap<>();
 		ForkJoinPool executor = new ForkJoinPool(4);
 
@@ -538,8 +505,8 @@ public class QueryPattern {
 
 			try {
 				Quad quad = iter.next();
-				String query = getDeleteStatement( keyspace, quad );
-			
+				String query = getDeleteStatement(keyspace, quad);
+
 				Runnable runner = new Runnable() {
 					@Override
 					public void run() {
@@ -581,7 +548,7 @@ public class QueryPattern {
 	 */
 	public long getCount(String keyspace) throws TException {
 		TableName tableName = getTableName();
-		String query = String.format("SELECT count(*) FROM %s.%s %s", keyspace, tableName, getWhereClause(tableName));
+		String query = String.format("SELECT count() FROM %s.%s %s", keyspace, tableName, getWhereClause(tableName));
 		ResultSet rs = connection.executeQuery(query);
 		return rs.one().getLong(0);
 	}
@@ -596,7 +563,7 @@ public class QueryPattern {
 					"Graph, subject, predicate and object must be specified for an insert: " + quad.toString());
 		}
 
-		QueryInfo queryInfo = new QueryInfo( quad );
+		QueryInfo queryInfo = new QueryInfo(quad);
 
 		StringBuilder sb = new StringBuilder("BEGIN BATCH").append(System.lineSeparator());
 
@@ -605,7 +572,7 @@ public class QueryPattern {
 			boolean first = true;
 			for (ColumnName colName : queryInfo.values.keySet()) {
 				if (!first) {
-					sb.append( ", ");
+					sb.append(", ");
 				}
 				sb.append(colName);
 				first = false;
@@ -615,9 +582,9 @@ public class QueryPattern {
 			first = true;
 			for (ColumnName colName : queryInfo.values.keySet()) {
 				if (!first) {
-					sb.append( ", ");
+					sb.append(", ");
 				}
-				sb.append( colName.getInsertValue(queryInfo.values.get(colName)));
+				sb.append(colName.getInsertValue(queryInfo.values.get(colName)));
 				first = false;
 			}
 			sb.append(");").append(System.lineSeparator());
@@ -638,8 +605,6 @@ public class QueryPattern {
 	public void doInsert(String keyspace) throws TException {
 		connection.executeQuery(getInsertStatement(keyspace));
 	}
-
-	
 
 	/**
 	 * A filter that ensures tha the results match the graph name and triple
@@ -765,34 +730,27 @@ public class QueryPattern {
 		private String[] tags;
 
 		public LanguageFilter(Object o) {
-			this.tags = o.toString().split( SPLIT_TOKEN );
+			this.tags = o.toString().split(SPLIT_TOKEN);
 		}
 
 		@Override
 		public boolean test(Quad t) {
-			if (t.getObject().isLiteral())
-			{
+			if (t.getObject().isLiteral()) {
 				return doFilter(t.getObject().getLiteralLanguage());
 			}
 			return false;
 		}
-		
-		private boolean doFilter( String lang )
-		{
-			String[] other = lang.split( SPLIT_TOKEN );
-			if (other.length < tags.length)
-			{
+
+		private boolean doFilter(String lang) {
+			String[] other = lang.split(SPLIT_TOKEN);
+			if (other.length < tags.length) {
 				return false;
 			}
-			
-			for (int i=0;i<tags.length;i++)
-			{
-				if ( ! tags[i].equals( WILDCARD ))
-				{
-					if ( ! tags[i].equalsIgnoreCase( other[i] ))
-					{
-						if ( ! other[i].equals( WILDCARD))
-						{
+
+			for (int i = 0; i < tags.length; i++) {
+				if (!tags[i].equals(WILDCARD)) {
+					if (!tags[i].equalsIgnoreCase(other[i])) {
+						if (!other[i].equals(WILDCARD)) {
 							return false;
 						}
 					}
@@ -803,6 +761,19 @@ public class QueryPattern {
 
 	}
 	
+	public class Query {
+		StringBuilder text;
+		boolean needsFilter = false;
+		private QueryInfo.WhereClause whereClause;
+		
+		public void setWhere( QueryInfo.WhereClause whereClause )
+		{
+			this.whereClause = whereClause;
+			text.append( whereClause.text);
+			needsFilter= whereClause.needFilter;
+		}
+	}
+
 	public class QueryInfo {
 		/**
 		 * The quad we used to generate the table name.
@@ -813,8 +784,8 @@ public class QueryPattern {
 		 */
 		TableName tableName;
 		/**
-		 * Any extra text to add to the where clause.  Should be of the form
-		 * 'A=B AND C=D'
+		 * Any extra text to add to the where clause. Should be of the form 'A=B
+		 * AND C=D'
 		 */
 		String extraWhere;
 		/**
@@ -822,166 +793,189 @@ public class QueryPattern {
 		 */
 		String suffix;
 		/**
-		 * Columns to remove from the where clause.  These are columns that will have 
-		 * data in the extraValuesMap but for which we do not want to generate x=y statements
-		 * in the where clause.
+		 * Columns to remove from the where clause. These are columns that will
+		 * have data in the extraValuesMap but for which we do not want to
+		 * generate x=y statements in the where clause.
 		 */
 		Collection<ColumnName> extraValueFilter;
-		
-		Map<ColumnName,Object> values;
+
+		Map<ColumnName, Object> values;
 
 		private QueryInfo(Quad quad) {
 			values = getQueryValues(quad);
-			
 			tableQuad = quad;
-
 			tableName = CassandraConnection.getTable(CassandraConnection.getId(tableQuad));
-						
 		}
 
+		public class WhereClause {
+			StringBuilder text;
+			boolean needFilter = false;
+		}
+		
 		/**
 		 * Builds the where clause for a query based on the table name, the quad
 		 * we are looing for and any extra values.
-
+		 * 
 		 * @return A string builder that contains the constructed where clause.
 		 * @throws TException
 		 *             on encoding error.
 		 */
-		public StringBuilder getWhereClause() throws TException {
+		public /*StringBuilder*/ WhereClause getWhereClause() throws TException {
 
-
+	
+			WhereClause retval = new WhereClause();
+			
 			// get the key values for the primary key
-			if (values == null)
-			{
-				values = getQueryValues( tableQuad );
+			if (values == null) {
+				values = getQueryValues(tableQuad);
 			}
 
-			if (extraValueFilter != null)
-			{
-				for (ColumnName c : extraValueFilter)
-				{
+			if (extraValueFilter != null) {
+				for (ColumnName c : extraValueFilter) {
 					values.remove(c);
 				}
 			}
 			
-			List<ColumnName> primaryKey = tableName.getPrimaryKeyColumns(); 
-			/* find the last primary key column that has a value -- make the 
-			 * object a null if it is not the only column that is not null. 
+			
+			/* Aways remove the object value if any non primary data are available
+			 * as we will us the other columns to find it in the query.
+			 * Delete should remove all non primary data.
+			 */
+			if (tableQuad.getObject().isLiteral() && hasNonPrimaryData())
+			{
+				values.remove(ColumnName.O);
+			}
+
+			List<ColumnName> primaryKey = tableName.getPrimaryKeyColumns();
+			/*
+			 * Find the last column with a value and determine if any of the values before 
+			 * that is a null.  If so then we have to do scans.
 			 */
 			int lastCol = -1;
-			int i=0;
-			for (ColumnName colName : primaryKey )
-			{
-				if (values.containsKey(colName))
-				{
-					if (colName != ColumnName.O)
-					{												
-						lastCol = i;
-					} else {
-						/* if the column is a literal skip it (and set the value to null)
-						 and we will use the extra data to locate it. Otherwise
-						 we just use the object column as it is a URI or anonymous
-						 node */
-						if ( objectIsLiteral())
-						{
-							values.remove( ColumnName.O);
-						} else {							
-							lastCol = i;						
-						}
-					}					
+			boolean skippedCol = false;
+			boolean doScans = false;
+			for (int i=0;i<primaryKey.size();i++) {
+				ColumnName colName = primaryKey.get(i);
+				if (values.containsKey(colName)) {
+						doScans |= skippedCol;
+						lastCol = i;		
+				} else {
+					skippedCol = true;
 				}
-				i++;
+				
 			}
-			StringBuilder result = new StringBuilder(" WHERE ");			
+			retval.text = new StringBuilder(" WHERE ");
 			if (lastCol == -1) {
 				// no primary key columns have a value so start with the scan
 				// value
-				result.append(tableName.getPartitionKey().getScanValue());
+				retval.text.append(tableName.getPartitionKey().getScanValue(null));		
+			}
+			else if (lastCol == 0 ){
+				ColumnName columnName = primaryKey.get(0);
+				Object value = values.get(columnName);
+				if (value == null) {
+					retval.text.append(columnName.getScanValue(value));
+				} else {
+					retval.text.append(columnName.getEqualityValue(value));
+				}
 			} else {
-				/*
-				 * for each of the columns in the primary key put in the value or the
-				 * scan statement.
+				/**
+				 * If we do scans then we have to do scans on all columns
 				 */
-				for (i=0;i<=lastCol;i++)
-				{
-					if (i>0)
-					{
-						result.append( " AND ");
+				if (doScans) {
+						for (int i = 0; i < primaryKey.size(); i++) {
+							if (i > 0) {
+								retval.text.append(" AND ");
+							}
+							ColumnName columnName = primaryKey.get(i);
+						Object value = values.get(columnName);
+						retval.text.append(columnName.getScanValue(value));
+						if (value != null)
+						{
+							retval.needFilter = true;
+						}
 					}
-				
+				} else {
+				/*
+				 * for each of the columns in the primary key put in the value
+				 * or the scan statement.
+				 */
+				for (int i = 0; i <= lastCol; i++) {
+					if (i > 0) {
+						retval.text.append(" AND ");
+					}
+
 					ColumnName columnName = primaryKey.get(i);
 					Object value = values.get(columnName);
-					if (value == null)
-					{
-						result.append(columnName.getScanValue());
-					}
-					else
-					{
-						result.append(columnName.getEqualityValue( value));
-					}
-				}				
-			}
-			
-			/* if the object is a literal put in the literal values */
-			for (ColumnName colName : getNonKeyColumns())
-			{
-				
-					Object value = values.get(colName);
-					if (value != null)
-					{
-					result.append( " AND ").append( colName.getEqualityValue(value));
-					}
-				
+						retval.text.append(columnName.getEqualityValue(value));
+					
+				}
+				}
 			}
 
-			return result;
+			/* if the object is a literal put in the literal values */
+			for (ColumnName colName : getNonKeyColumns()) {
+
+				Object value = values.get(colName);
+				if (value != null) {
+					retval.text.append(" AND ").append(colName.getEqualityValue(value));
+				}
+
+			}
+
+			if (extraWhere != null) {
+				retval.text.append( " AND " ).append(extraWhere);
+			}
+			return retval;
 		}
-		
-		public List<ColumnName> getNonKeyColumns()
-		{
-			List<ColumnName> lst = new ArrayList<ColumnName>( values.keySet());
-			lst.removeAll( tableName.getPrimaryKeyColumns() );
+
+		public List<ColumnName> getNonKeyColumns() {
+			List<ColumnName> lst = new ArrayList<ColumnName>(values.keySet());
+			lst.removeAll(tableName.getPrimaryKeyColumns());
 			return lst;
 		}
 
-		public boolean hasNonPrimaryData()
-		{
-			return ! getNonKeyColumns().isEmpty();
-		}
-		
-		public boolean objectIsLiteral()
-		{
-			return values.containsKey( ColumnName.V);
+		public boolean hasNonPrimaryData() {
+			return !getNonKeyColumns().isEmpty();
 		}
 
-//		/**
-//		 * Create a map of columns to extra values for the specified object node.
-//		 * The resulting map will only have the column names for extra values needed
-//		 * for the object node type.
-//		 * 
-//		 * @param object
-//		 *            The object node to process
-//		 * @return A map of extra values indexed by columnName. May be empty but not
-//		 *         null.
-//		 */
-//		private Map<ColumnName, Object> getObjectExtraValues(Node object) {
-//			// use treemap to ensure column names are always returned in the same
-//			// order.
-//			Map<ColumnName, Object> retval = new TreeMap<ColumnName, Object>();
-//
-//			if (object != null && object.isLiteral()) {
-//				if (object.getLiteralDatatype() instanceof XSDBaseNumericType) {
-//					retval.put(ColumnName.I, new BigDecimal(object.getLiteral().getLexicalForm()));
-//				}
-//				retval.put(ColumnName.D, String.format("'%s'", object.getLiteralDatatypeURI()));
-//				String lang = object.getLiteralLanguage();
-//				if (!StringUtils.isBlank(lang)) {
-//					retval.put(ColumnName.L, String.format("'%s'", lang.toLowerCase()));
-//				}
-//			}
-//			return retval;
-//		}
+		public boolean objectIsLiteral() {
+			return values.containsKey(ColumnName.V);
+		}
 		
-		
+
+		// /**
+		// * Create a map of columns to extra values for the specified object
+		// node.
+		// * The resulting map will only have the column names for extra values
+		// needed
+		// * for the object node type.
+		// *
+		// * @param object
+		// * The object node to process
+		// * @return A map of extra values indexed by columnName. May be empty
+		// but not
+		// * null.
+		// */
+		// private Map<ColumnName, Object> getObjectExtraValues(Node object) {
+		// // use treemap to ensure column names are always returned in the same
+		// // order.
+		// Map<ColumnName, Object> retval = new TreeMap<ColumnName, Object>();
+		//
+		// if (object != null && object.isLiteral()) {
+		// if (object.getLiteralDatatype() instanceof XSDBaseNumericType) {
+		// retval.put(ColumnName.I, new
+		// BigDecimal(object.getLiteral().getLexicalForm()));
+		// }
+		// retval.put(ColumnName.D, String.format("'%s'",
+		// object.getLiteralDatatypeURI()));
+		// String lang = object.getLiteralLanguage();
+		// if (!StringUtils.isBlank(lang)) {
+		// retval.put(ColumnName.L, String.format("'%s'", lang.toLowerCase()));
+		// }
+		// }
+		// return retval;
+		// }
+
 	}
 }

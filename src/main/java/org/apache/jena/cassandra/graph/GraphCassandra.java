@@ -18,7 +18,6 @@
 
 package org.apache.jena.cassandra.graph;
 
-import java.util.Iterator;
 import java.util.function.Function;
 
 import org.apache.commons.lang3.StringUtils;
@@ -34,11 +33,6 @@ import org.apache.jena.util.iterator.ExtendedIterator;
 import org.apache.jena.shared.AddDeniedException;
 import org.apache.jena.sparql.core.Quad;
 import org.apache.thrift.TException;
-
-import com.datastax.driver.core.ResultSet;
-import com.datastax.driver.core.exceptions.NoHostAvailableException;
-import com.datastax.driver.core.exceptions.QueryExecutionException;
-import com.datastax.driver.core.exceptions.QueryValidationException;
 
 /**
  * The Cassandra graph implementation.
@@ -114,9 +108,9 @@ public class GraphCassandra extends GraphBase {
 		if (Quad.isDefaultGraph(graph)) {
 			throw new AddDeniedException("Can not add to default graph named " + graph);
 		}
-		QueryPattern pattern = new QueryPattern( connection, graph, t);
+		QueryPattern pattern = new QueryPattern(connection, graph, t);
 		try {
-			pattern.doInsert( keyspace);
+			pattern.doInsert(keyspace);
 		} catch (TException e) {
 			LOG.error("bad values", e);
 		}
@@ -128,9 +122,9 @@ public class GraphCassandra extends GraphBase {
 			throw new AddDeniedException("Can not delete from default graph named " + graph);
 		}
 
-		QueryPattern pattern = new QueryPattern( connection, graph, t);
-		pattern.doDelete( keyspace);
-		
+		QueryPattern pattern = new QueryPattern(connection, graph, t);
+		pattern.doDelete(keyspace);
+
 	}
 
 	@Override
@@ -167,17 +161,17 @@ public class GraphCassandra extends GraphBase {
 	}
 
 	@Override
-	public boolean isEmpty() {		
-		QueryPattern pattern = new QueryPattern( connection, graph, Triple.ANY);
-		return ! pattern.doContains( keyspace);
+	public boolean isEmpty() {
+		QueryPattern pattern = new QueryPattern(connection, graph, Triple.ANY);
+		return !pattern.doContains(keyspace);
 	}
 
 	@Override
 	protected int graphBaseSize() {
-		QueryPattern pattern = new QueryPattern( connection, graph, Triple.ANY);
+		QueryPattern pattern = new QueryPattern(connection, graph, Triple.ANY);
 		try {
-			long retval = pattern.getCount( keyspace);
-			return retval > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int)retval;
+			long retval = pattern.getCount(keyspace);
+			return retval > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) retval;
 		} catch (TException e) {
 			LOG.error("Error building where clause", e);
 			return -1;
@@ -186,14 +180,14 @@ public class GraphCassandra extends GraphBase {
 
 	@Override
 	protected boolean graphBaseContains(Triple t) {
-		QueryPattern pattern = new QueryPattern( connection, graph, t);
-		return pattern.doContains( keyspace);
+		QueryPattern pattern = new QueryPattern(connection, graph, t);
+		return pattern.doContains(keyspace);
 	}
 
 	@Override
 	protected ExtendedIterator<Triple> graphBaseFind(Triple triplePattern) {
-		QueryPattern pattern = new QueryPattern( connection, graph, triplePattern);
-		return pattern.doFind(  keyspace).mapWith(new QuadToTriple());
+		QueryPattern pattern = new QueryPattern(connection, graph, triplePattern);
+		return pattern.doFind(keyspace).mapWith(new QuadToTriple());
 	}
 
 	/**

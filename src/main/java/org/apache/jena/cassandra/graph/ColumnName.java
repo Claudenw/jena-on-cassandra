@@ -27,7 +27,7 @@ import org.apache.jena.sparql.core.Quad;
  */
 public enum ColumnName {
 	S("subject", "blob", 0), P("predicate", "blob", 1), O("object", "blob", 2), G("graph", "blob" ,3), 
-	L("obj_lang", "text", 4), D("obj_dtype", "text", 5), I( "obj_int", "varint", -1), V( "obj_value", "blob", 6);
+	L("obj_lang", "text", 4), D("obj_dtype", "text", 5), I( "obj_int", "varint", -1), V( "obj_value", "text", 6);
 
 	/* the long name of the column */
 	private String name;
@@ -121,7 +121,7 @@ public enum ColumnName {
 	 * Get the scan value for a where clause.
 	 * @return The scan value string for this column.
 	 */
-	public String getScanValue()
+	public String getScanValue( Object value )
 	{
 		switch (this) {
 		case S:
@@ -129,14 +129,21 @@ public enum ColumnName {
 		case O:
 		case G:
 		default:
-			return String.format( "token(%s) >= %s", this, Long.MIN_VALUE);
+			if (value == null)
+			{
+				return String.format( "token(%s) >= %s", this, Long.MIN_VALUE);
+			}
+			else
+			{
+				return String.format( "token(%s) = token(%s)", this, value);
+			}
 			
 		case I:
 			return String.format( "%s >= %s", this, Integer.MIN_VALUE);
 		case L:
 		case D:
 		case V:
-			return String.format( "%s >= %s", this, "a");		
+			return String.format( "%s >= %s", this, "''");		
 		}
 	}
 	
