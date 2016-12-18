@@ -231,9 +231,9 @@ public class QueryPatternTest {
 		QueryPattern.Query query = qp.getFindQuery("test", qi);
 		String s = query.text.toString();
 		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
-		assertTrue("table missing", s.contains("test.POGS"));
+		assertTrue("table missing", s.contains("test.PGOS"));
 		assertTrue( s.contains( "ALLOW FILTERING"));
-		assertTrue( query.needsFilter );
+		assertFalse( query.needsFilter );
 	}
 	
 	@Test
@@ -300,7 +300,7 @@ public class QueryPatternTest {
 		QueryPattern.Query query = qp.getFindQuery("test", qi);
 		String s = query.text.toString();
 		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
-		assertTrue("table missing", s.contains("test.POGS"));
+		assertTrue("table missing", s.contains("test.PGOS"));
 		assertTrue( s.contains( "ALLOW FILTERING"));
 		assertFalse( query.needsFilter );
 	}	
@@ -356,7 +356,7 @@ public class QueryPatternTest {
 		QueryPattern.Query query = qp.getFindQuery("test", qi);
 		String s = query.text.toString();
 		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
-		assertTrue("table missing", s.contains("test.POGS"));
+		assertTrue("table missing", s.contains("test.PGOS"));
 		assertFalse( s.contains( "ALLOW FILTERING"));
 		assertFalse( query.needsFilter );
 	}	
@@ -395,9 +395,9 @@ public class QueryPatternTest {
 		QueryPattern.Query query = qp.getFindQuery("test", qi);
 		String s = query.text.toString();
 		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
-		assertTrue("table missing", s.contains("test.POGS"));
+		assertTrue("table missing", s.contains("test.PGOS"));
 		assertFalse( s.contains( "ALLOW FILTERING"));
-		assertTrue( query.needsFilter );
+		assertFalse( query.needsFilter );
 	}	
 
 	@Test
@@ -447,9 +447,9 @@ public class QueryPatternTest {
 		QueryPattern.Query query = qp.getFindQuery("test", qi);
 		String s = query.text.toString();
 		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
-		assertTrue("table missing", s.contains("test.POGS"));
+		assertTrue("table missing", s.contains("test.PGOS"));
 		assertFalse( s.contains( "ALLOW FILTERING"));
-		assertFalse( query.needsFilter );
+		assertTrue( query.needsFilter );
 	}	
 
 	@Test
@@ -474,7 +474,7 @@ public class QueryPatternTest {
 		String s = query.text.toString();
 
 		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
-		assertTrue("table missing", s.contains("test.POGS"));
+		assertTrue("table missing", s.contains("test.PGOS"));
 		assertFalse( s.contains( "ALLOW FILTERING"));
 		assertFalse( query.needsFilter );
 	}	
@@ -544,9 +544,9 @@ public class QueryPatternTest {
 				QueryPattern.Query query = qp.getFindQuery("test", qi);
 		String s = query.text.toString();
 		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
-		assertTrue("table missing", s.contains("test.POGS"));
+		assertTrue("table missing", s.contains("test.PGOS"));
 		assertTrue( s.contains( "ALLOW FILTERING"));
-		assertTrue( query.needsFilter );
+		assertFalse( query.needsFilter );
 	}
 	
 	@Test
@@ -607,7 +607,7 @@ public class QueryPatternTest {
 				QueryPattern.Query query = qp.getFindQuery("test", qi);
 		String s = query.text.toString();
 		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
-		assertTrue("table missing", s.contains("test.POGS"));
+		assertTrue("table missing", s.contains("test.PGOS"));
 		assertTrue( s.contains( "ALLOW FILTERING"));
 		assertFalse( query.needsFilter );
 	}	
@@ -656,9 +656,9 @@ public class QueryPatternTest {
 				QueryPattern.Query query = qp.getFindQuery("test", qi);
 		String s = query.text.toString();
 		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
-		assertTrue("table missing", s.contains("test.POGS"));
+		assertTrue("table missing", s.contains("test.PGOS"));
 		assertTrue( s.contains( "ALLOW FILTERING"));
-		assertTrue( query.needsFilter );
+		assertFalse( query.needsFilter );
 	}
 	
 	@Test
@@ -719,7 +719,7 @@ public class QueryPatternTest {
 				QueryPattern.Query query = qp.getFindQuery("test", qi);
 		String s = query.text.toString();
 		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
-		assertTrue("table missing", s.contains("test.POGS"));
+		assertTrue("table missing", s.contains("test.PGOS"));
 		assertTrue( s.contains( "ALLOW FILTERING"));
 		assertFalse( query.needsFilter );
 	}	
@@ -766,7 +766,7 @@ public class QueryPatternTest {
 		assertTrue("table missing", lines[1].contains("test.SPOG"));
 		verifyInsertNumericValues(lines[1]);
 
-		assertTrue("table missing", lines[2].contains("test.POGS"));
+		assertTrue("table missing", lines[2].contains("test.PGOS"));
 		verifyInsertNumericValues(lines[2]);
 
 		assertTrue("table missing", lines[3].contains("test.OSGP"));
@@ -803,7 +803,7 @@ public class QueryPatternTest {
 		assertTrue("table missing", lines[1].contains("test.SPOG"));
 		verifyInsertLitValues( lines[1] );
 		
-		assertTrue("table missing", lines[2].contains("test.POGS"));
+		assertTrue("table missing", lines[2].contains("test.PGOS"));
 		verifyInsertLitValues( lines[2] );
 
 		assertTrue("table missing", lines[3].contains("test.OSGP"));
@@ -841,7 +841,7 @@ public class QueryPatternTest {
 		assertTrue("table missing", lines[1].contains("test.SPOG"));
 		verifyInsertLitLangValues( lines[1] );
 		
-		assertTrue("table missing", lines[2].contains("test.POGS"));
+		assertTrue("table missing", lines[2].contains("test.PGOS"));
 		verifyInsertLitLangValues( lines[2] );
 
 		assertTrue("table missing", lines[3].contains("test.OSGP"));
@@ -876,7 +876,7 @@ public class QueryPatternTest {
 		assertTrue("table missing", lines[1].contains("test.SPOG"));
 		verifyInsertObjectValues( lines[1] );
 		
-		assertTrue("table missing", lines[2].contains("test.POGS"));
+		assertTrue("table missing", lines[2].contains("test.PGOS"));
 		verifyInsertObjectValues( lines[2] );
 
 		assertTrue("table missing", lines[3].contains("test.OSGP"));
@@ -901,7 +901,7 @@ public class QueryPatternTest {
 
 		assertTrue("table missing", lines[1].contains("test.SPOG"));
 		
-		assertTrue("table missing", lines[2].contains("test.POGS"));
+		assertTrue("table missing", lines[2].contains("test.PGOS"));
 
 		assertTrue("table missing", lines[3].contains("test.OSGP"));
 		
@@ -923,7 +923,7 @@ public class QueryPatternTest {
 
 		assertTrue("table missing", lines[1].contains("test.SPOG"));
 		
-		assertTrue("table missing", lines[2].contains("test.POGS"));
+		assertTrue("table missing", lines[2].contains("test.PGOS"));
 
 		assertTrue("table missing", lines[3].contains("test.OSGP"));
 		
@@ -943,7 +943,7 @@ public class QueryPatternTest {
 
 		assertTrue("table missing", lines[1].contains("test.SPOG"));
 		
-		assertTrue("table missing", lines[2].contains("test.POGS"));
+		assertTrue("table missing", lines[2].contains("test.PGOS"));
 
 		assertTrue("table missing", lines[3].contains("test.OSGP"));
 		
@@ -963,7 +963,7 @@ public class QueryPatternTest {
 
 		assertTrue("table missing", lines[1].contains("test.SPOG"));
 		
-		assertTrue("table missing", lines[2].contains("test.POGS"));
+		assertTrue("table missing", lines[2].contains("test.PGOS"));
 
 		assertTrue("table missing", lines[3].contains("test.OSGP"));
 		

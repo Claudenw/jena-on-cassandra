@@ -220,15 +220,15 @@ public class QueryPattern {
 					}
 					break;
 				case I:
-					n = colName.getMatch(quad);
+					n = ColumnName.O.getMatch(quad);
 					if (n != null) {
-						if (n.isLiteral() && n.getLiteralDatatype() instanceof XSDBaseNumericType) {
+						if (n.isLiteral() && n.getLiteralDatatype() instanceof XSDBaseNumericType) {							
 							retval.put(colName, new BigDecimal(n.getLiteral().getLexicalForm()));
 						}
 					}
 					break;
 				case L:
-					n = colName.getMatch(quad);
+					n = ColumnName.O.getMatch(quad);
 					if (n != null) {
 						if (n.isLiteral() && StringUtils.isNotEmpty(n.getLiteralLanguage())) {
 							retval.put(colName, n.getLiteralLanguage());
@@ -236,7 +236,7 @@ public class QueryPattern {
 					}
 					break;
 				case D:
-					n = colName.getMatch(quad);
+					n = ColumnName.O.getMatch(quad);
 					if (n != null) {
 						if (n.isLiteral()) {
 							retval.put(colName, n.getLiteralDatatypeURI());
@@ -548,9 +548,24 @@ public class QueryPattern {
 	 */
 	public long getCount(String keyspace) throws TException {
 		TableName tableName = getTableName();
-		String query = String.format("SELECT count() FROM %s.%s %s", keyspace, tableName, getWhereClause(tableName));
-		ResultSet rs = connection.executeQuery(query);
-		return rs.one().getLong(0);
+		QueryInfo.WhereClause whereClause = getWhereClause(tableName);
+		if (whereClause.needFilter)
+		{
+			ExtendedIterator<Quad> iter = doFind( keyspace );
+			long count = 0;
+			while (iter.hasNext())
+			{
+				count++;
+				iter.next();
+			}
+			return count;
+		}
+		else
+		{
+			String query = String.format("SELECT count(%s) FROM %s.%s %s", tableName.getPartitionKey(), keyspace, tableName, whereClause.text);
+			ResultSet rs = connection.executeQuery(query);
+			return rs.one().getLong(0);
+		}		
 	}
 
 	/*
@@ -607,7 +622,7 @@ public class QueryPattern {
 	}
 
 	/**
-	 * A filter that ensures tha the results match the graph name and triple
+	 * A filter that ensures that the results match the graph name and triple
 	 * pattern for this query pattern.
 	 *
 	 */
@@ -651,7 +666,7 @@ public class QueryPattern {
 					dser.deserialize(objTerm, row.getBytes(ColumnName.O.getQueryPos()).array());
 					obj = ThriftConvert.convert(objTerm);
 				} else {
-					String lex = new String(row.getBytes(ColumnName.O.getQueryPos()).array());
+					String lex = row.getString(ColumnName.V.getQueryPos());
 					String lang = row.getString(ColumnName.L.getQueryPos());
 					String dTypeURL = row.getString(ColumnName.D.getQueryPos());
 					RDFDatatype dType = TypeMapper.getInstance().getSafeTypeByName(dTypeURL);
@@ -814,14 +829,26 @@ public class QueryPattern {
 		
 		/**
 		 * Builds the where clause for a query based on the table name, the quad
-		 * we are looing for and any extra values.
+		 * we are looking for and any extra values.
 		 * 
 		 * @return A string builder that contains the constructed where clause.
 		 * @throws TException
 		 *             on encoding error.
 		 */
 		public /*StringBuilder*/ WhereClause getWhereClause() throws TException {
-
+/*
+ * Cassandra queries have some particular requirements:
+ * 
+ * 1. the primary key must be specified.  If it is not specified then token( col ) > Long.MIN_VALUE will 
+ * return all the values
+ * 
+ * 2. the rest of the key columns do not have to be specified except that if a key segment has a value
+ * all earlier segments must also have values.
+ * 
+ * To handle the case where a previous key segment is missing we will stop at the first missing segment.
+ * If there are any further specified segments we will use a result filter to properly filter them
+ * 
+ */
 	
 			WhereClause retval = new WhereClause();
 			
@@ -837,7 +864,7 @@ public class QueryPattern {
 			}
 			
 			
-			/* Aways remove the object value if any non primary data are available
+			/* Always remove the object value if any non primary data are available
 			 * as we will us the other columns to find it in the query.
 			 * Delete should remove all non primary data.
 			 */
@@ -848,22 +875,29 @@ public class QueryPattern {
 
 			List<ColumnName> primaryKey = tableName.getPrimaryKeyColumns();
 			/*
-			 * Find the last column with a value and determine if any of the values before 
-			 * that is a null.  If so then we have to do scans.
+			 * Find the last key segment with a value and determine if any of the segments before 
+			 * that is a null.  
 			 */
 			int lastCol = -1;
 			boolean skippedCol = false;
-			boolean doScans = false;
+			
 			for (int i=0;i<primaryKey.size();i++) {
 				ColumnName colName = primaryKey.get(i);
-				if (values.containsKey(colName)) {
-						doScans |= skippedCol;
-						lastCol = i;		
+				if (values.containsKey(colName))
+				{
+					if (skippedCol)
+					{
+						retval.needFilter = true;
+					}
+					else
+					{
+						lastCol = i;
+					}
 				} else {
 					skippedCol = true;
 				}
-				
 			}
+		
 			retval.text = new StringBuilder(" WHERE ");
 			if (lastCol == -1) {
 				// no primary key columns have a value so start with the scan
@@ -881,21 +915,7 @@ public class QueryPattern {
 			} else {
 				/**
 				 * If we do scans then we have to do scans on all columns
-				 */
-				if (doScans) {
-						for (int i = 0; i < primaryKey.size(); i++) {
-							if (i > 0) {
-								retval.text.append(" AND ");
-							}
-							ColumnName columnName = primaryKey.get(i);
-						Object value = values.get(columnName);
-						retval.text.append(columnName.getScanValue(value));
-						if (value != null)
-						{
-							retval.needFilter = true;
-						}
-					}
-				} else {
+				 */				
 				/*
 				 * for each of the columns in the primary key put in the value
 				 * or the scan statement.
@@ -908,12 +928,11 @@ public class QueryPattern {
 					ColumnName columnName = primaryKey.get(i);
 					Object value = values.get(columnName);
 						retval.text.append(columnName.getEqualityValue(value));
-					
-				}
+				
 				}
 			}
 
-			/* if the object is a literal put in the literal values */
+			/* if there are non key columns put their values in */
 			for (ColumnName colName : getNonKeyColumns()) {
 
 				Object value = values.get(colName);
@@ -923,6 +942,7 @@ public class QueryPattern {
 
 			}
 
+			/* if there is any extra key put that value in */
 			if (extraWhere != null) {
 				retval.text.append( " AND " ).append(extraWhere);
 			}
