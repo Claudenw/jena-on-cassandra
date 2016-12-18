@@ -138,7 +138,7 @@ public class TableName {
 		retval[0] = sb.toString();
 
 		retval[1] = String.format("CREATE INDEX %2$s_%3$s ON %1$s.%2$s (%3$s)", keyspace, this, ColumnName.I);
-		retval[2] = String.format("CREATE INDEX %2$s_%3$s ON %1$s.%2$s (%3$s)", keyspace, this, ColumnName.L);
+		retval[2] = String.format("CREATE INDEX %2$s_%3$s ON %1$s.%2$s (%3$s, %4$s)", keyspace, this, ColumnName.V, ColumnName.D);
 		return retval;
 	}
 }

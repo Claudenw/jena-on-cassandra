@@ -114,9 +114,9 @@ public class GraphCassandra extends GraphBase {
 		if (Quad.isDefaultGraph(graph)) {
 			throw new AddDeniedException("Can not add to default graph named " + graph);
 		}
-		QueryPattern pattern = new QueryPattern( graph, t);
+		QueryPattern pattern = new QueryPattern( connection, graph, t);
 		try {
-			pattern.doInsert(connection, keyspace);
+			pattern.doInsert( keyspace);
 		} catch (TException e) {
 			LOG.error("bad values", e);
 		}
@@ -128,8 +128,8 @@ public class GraphCassandra extends GraphBase {
 			throw new AddDeniedException("Can not delete from default graph named " + graph);
 		}
 
-		QueryPattern pattern = new QueryPattern( graph, t);
-		pattern.doDelete( connection, keyspace);
+		QueryPattern pattern = new QueryPattern( connection, graph, t);
+		pattern.doDelete( keyspace);
 		
 	}
 
@@ -168,15 +168,15 @@ public class GraphCassandra extends GraphBase {
 
 	@Override
 	public boolean isEmpty() {		
-		QueryPattern pattern = new QueryPattern( graph, Triple.ANY);
-		return ! pattern.doContains(connection, keyspace);
+		QueryPattern pattern = new QueryPattern( connection, graph, Triple.ANY);
+		return ! pattern.doContains( keyspace);
 	}
 
 	@Override
 	protected int graphBaseSize() {
-		QueryPattern pattern = new QueryPattern( graph, Triple.ANY);
+		QueryPattern pattern = new QueryPattern( connection, graph, Triple.ANY);
 		try {
-			long retval = pattern.getCount(connection, keyspace);
+			long retval = pattern.getCount( keyspace);
 			return retval > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int)retval;
 		} catch (TException e) {
 			LOG.error("Error building where clause", e);
@@ -186,14 +186,14 @@ public class GraphCassandra extends GraphBase {
 
 	@Override
 	protected boolean graphBaseContains(Triple t) {
-		QueryPattern pattern = new QueryPattern( graph, t);
-		return pattern.doContains(connection, keyspace);
+		QueryPattern pattern = new QueryPattern( connection, graph, t);
+		return pattern.doContains( keyspace);
 	}
 
 	@Override
 	protected ExtendedIterator<Triple> graphBaseFind(Triple triplePattern) {
-		QueryPattern pattern = new QueryPattern( graph, triplePattern);
-		return pattern.doFind( connection, keyspace).mapWith(new QuadToTriple());
+		QueryPattern pattern = new QueryPattern( connection, graph, triplePattern);
+		return pattern.doFind(  keyspace).mapWith(new QuadToTriple());
 	}
 
 	/**

@@ -27,7 +27,7 @@ import org.apache.jena.sparql.core.Quad;
  */
 public enum ColumnName {
 	S("subject", "blob", 0), P("predicate", "blob", 1), O("object", "blob", 2), G("graph", "blob" ,3), 
-	L("obj_lang", "text", 4), D("obj_dtype", "text", 5), I( "obj_idx", "varint", -1);
+	L("obj_lang", "text", 4), D("obj_dtype", "text", 5), I( "obj_int", "varint", -1), V( "obj_value", "blob", 6);
 
 	/* the long name of the column */
 	private String name;
@@ -135,10 +135,52 @@ public enum ColumnName {
 			return String.format( "%s >= %s", this, Integer.MIN_VALUE);
 		case L:
 		case D:
+		case V:
 			return String.format( "%s >= %s", this, "a");		
 		}
 	}
+	
+	public String getEqualityValue( Object value )
+	{
+		if (value == null)
+		{
+			throw new IllegalArgumentException( "value may not be null");
+		}
+		switch (this) {
+		case S:
+		case P:
+		case O:
+		case G:
+		case I:
+		default:
+			return String.format( "%s=%s", this, value);
+		case L:
+		case D:
+		case V:
+			return String.format( "%s='%s'", this, value);		
+		}
+	}
 
+	public String getInsertValue( Object value )
+	{
+		if (value == null)
+		{
+			throw new IllegalArgumentException( "value may not be null");
+		}
+		switch (this) {
+		case S:
+		case P:
+		case O:
+		case G:
+		case I:
+		default:
+			return String.format( "%s", value);
+		case L:
+		case D:
+		case V:
+			return String.format( "'%s'", value);		
+		}
+	}
 	/**
 	 * The text to create the column.
 	 * @return the column definition for construction.

@@ -20,6 +20,7 @@ package org.apache.jena.cassandra.graph;
 
 import static org.junit.Assert.*;
 
+import java.util.Arrays;
 import java.util.Map;
 import java.util.TreeMap;
 
@@ -28,21 +29,23 @@ import org.apache.jena.graph.NodeFactory;
 import org.apache.jena.graph.impl.LiteralLabelFactory;
 import org.apache.jena.sparql.core.Quad;
 import org.apache.thrift.TException;
+import org.junit.Before;
 import org.junit.Test;
+
+import com.datastax.driver.core.Cluster;
+import com.datastax.driver.core.Session;
+
+import static org.mockito.Mockito.*;
 
 public class QueryPatternTest {
 
 	private static String graphHexValue = "0x0c00010b000100000018687474703a2f2f65786d61706c652e636f6d2f67726170680000";
-	private static String graphHex = " graph=" + graphHexValue + " ";
 
 	private static String subjectHexValue = "0x0c00010b00010000001a687474703a2f2f65786d61706c652e636f6d2f7375626a6563740000";
-	private static String subjectHex = " subject=" + subjectHexValue + " ";
 
 	private static String predicateHexValue = "0x0c00010b00010000001c687474703a2f2f65786d61706c652e636f6d2f7072656469636174650000";
-	private static String predicateHex = " predicate=" + predicateHexValue + " ";
 
 	private static String objectHexValue = "0x0c00010b000100000019687474703a2f2f65786d61706c652e636f6d2f6f626a6563740000";
-	private static String objectHex = " object=" + objectHexValue + " ";
 
 	private static Node graph = NodeFactory.createURI("http://exmaple.com/graph");
 	private static Node subject = NodeFactory.createURI("http://exmaple.com/subject");
@@ -50,19 +53,26 @@ public class QueryPatternTest {
 	private static Node object = NodeFactory.createURI("http://exmaple.com/object");
 
 	private static Node node42 = NodeFactory.createLiteral(LiteralLabelFactory.createTypedLiteral(42));
-	private static String node42HexValue = "0x3432";
-
+	private static String node42HexValue = "0x0c00030b00010000000234320b000300000024687474703a2f2f7777772e77332e6f72672f323030312f584d4c536368656d6123696e740000";
+	private static String node42DType="'http://www.w3.org/2001/XMLSchema#int'";
+	private static String node42LitValue="'42'";
+	
+	private static String nodeLitValue = "'String Literal'";
 	private static Node nodeLit = NodeFactory.createLiteral("String Literal");
-	private static String nodeLitHexValue = "0x537472696e67204c69746572616c";
 	private static String nodeLitDType = "'http://www.w3.org/2001/XMLSchema#string'";
+	private static String nodeLitHexValue = "0x0c00030b00010000000e537472696e67204c69746572616c0000";
 
 	private static Node nodeLitLang = NodeFactory.createLiteral("String Literal", "en-US");
 	private static String nodeLitLangDType = "'http://www.w3.org/1999/02/22-rdf-syntax-ns#langString'";
+	private static String nodeLitLangHexValue = "0x0c00030b00010000000e537472696e67204c69746572616c0b000200000005656e2d55530000";
 
+	
 	private final static String SELECT_COLUMNS;
+	
+	private CassandraConnection connection;
 
 	static {
-		ColumnName[] cols = new ColumnName[6];
+		ColumnName[] cols = new ColumnName[ColumnName.values().length];
 		for (ColumnName c : ColumnName.values()) {
 			if (c.getQueryPos() != -1) {
 				cols[c.getQueryPos()] = c;
@@ -71,6 +81,10 @@ public class QueryPatternTest {
 		}
 		StringBuilder sb = new StringBuilder();
 		for (ColumnName c : cols) {
+			if (c == null)
+			{
+				break;
+			}
 			if (sb.length() > 0) {
 				sb.append(", ");
 			}
@@ -80,597 +94,1190 @@ public class QueryPatternTest {
 		SELECT_COLUMNS = sb.toString();
 	}
 
-	@Test
-	public void fullFindQueryTest() throws TException {
-		Quad q = new Quad(graph, subject, predicate, object);
-		QueryPattern qp = new QueryPattern(q);
-		QueryPattern.QueryInfo qi = qp.new QueryInfo(q);
-		// add extra space to match internal tests
-		String s = qp.getFindQuery("test", qi) + " ";
-		assertTrue("table missing", s.contains("test.SPOG"));
-		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
-		assertTrue("graph missing", s.contains(graphHex));
-		assertTrue("subject missing", s.contains(subjectHex));
-		assertTrue("predicate missing", s.contains(predicateHex));
-		assertTrue("object missing", s.contains(objectHex));
-		assertFalse(ColumnName.I + " found", s.contains(ColumnName.I.toString()));
-
+	@Before
+	public void setup() {
+		Cluster cluster = mock(Cluster.class);
+		Session session = mock(Session.class);
+		when( cluster.connect()).thenReturn( session );
+		connection = new CassandraConnection( cluster );
 	}
-
-	@Test
-	public void fullFindQuerySuffixTest() throws TException {
-		Quad q = new Quad(graph, subject, predicate, object);
-		QueryPattern qp = new QueryPattern(q);
-
-		// add extra space to match internal tests
-		QueryPattern.QueryInfo qi = qp.new QueryInfo(q);
-		qi.suffix="limit 1";
-		String s = qp.getFindQuery("test", qi);
-		assertTrue("table missing", s.contains("test.SPOG"));
-		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
-		assertTrue("graph missing", s.contains(graphHex));
-		assertTrue("subject missing", s.contains(subjectHex));
-		assertTrue("predicate missing", s.contains(predicateHex));
-		assertTrue("object missing", s.contains(objectHex));
-		assertFalse(ColumnName.I + " found", s.contains(ColumnName.I.toString()));
-		assertTrue("suffix missing", s.contains(" limit 1"));
+	
+	private void assertColumnNotFound( ColumnName c, String s )
+	{
+		assertFalse(c+ " found in "+s, s.contains(c.toString()));
 	}
-
-	@Test
-	public void fullFindQueryExtraTest() throws TException {
-		Quad q = new Quad(graph, subject, predicate, object);
-		QueryPattern qp = new QueryPattern(q);
-		QueryPattern.QueryInfo qi = qp.new QueryInfo(q);
-		qi.extraWhere="something=Something";
-		// add extra space to match internal tests
-		String s = qp.getFindQuery("test", qi);
-		assertTrue("table missing", s.contains("test.SPOG"));
-		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
-		assertTrue("graph missing", s.contains(graphHex));
-		assertTrue("subject missing", s.contains(subjectHex));
-		assertTrue("predicate missing", s.contains(predicateHex));
-		assertTrue("object missing", s.contains(objectHex));
-		assertFalse(ColumnName.I + " found", s.contains(ColumnName.I.toString()));
-		assertTrue("extra missing", s.contains(" AND something=Something"));
+	
+	private void assertColumnFound( ColumnName c, String s )
+	{
+		assertTrue(c+ " not found in "+s, s.contains(c.toString()));
 	}
-
-	@Test
-	public void fullFindQueryExtraSuffixTest() throws TException {
-		Quad q = new Quad(graph, subject, predicate, object);
-		QueryPattern qp = new QueryPattern(q);
-		QueryPattern.QueryInfo qi = qp.new QueryInfo(q);
-		qi.extraWhere="something=Something";
-		qi.suffix="limit 1";
-		// add extra space to match internal tests
-		String s = qp.getFindQuery("test", qi);
-		assertTrue("table missing", s.contains("test.SPOG"));
-		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
-		assertTrue("graph missing", s.contains(graphHex));
-		assertTrue("subject missing", s.contains(subjectHex));
-		assertTrue("predicate missing", s.contains(predicateHex));
-		assertTrue("object missing", s.contains(objectHex));
-		assertFalse(ColumnName.I + " found", s.contains(ColumnName.I.toString()));
-		assertTrue("extra missing", s.contains(" AND something=Something "));
-		assertTrue("suffix missing", s.contains(" limit 1"));
+	
+	private void assertColumnDataFound( ColumnName c, String data, String s )
+	{
+		assertTrue(c+" data not found in "+s, s.contains(String.format("%s=%s",  c, data)));		
 	}
-
-	@Test
-	public void fullLiteralFindQueryTest() throws TException {
-
-		Quad q = new Quad(graph, subject, predicate, node42);
-		QueryPattern qp = new QueryPattern(q);
-		QueryPattern.QueryInfo qi = qp.new QueryInfo(q);
-		String s = qp.getFindQuery("test", qi) + " ";
-		assertTrue("table missing", s.contains("test.GSPO"));
-		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
-		assertTrue("graph missing", s.contains(graphHex));
-		assertTrue("subject missing", s.contains(subjectHex));
-		assertTrue("predicate missing", s.contains(predicateHex));
-		assertFalse("object found", s.contains(objectHex));
-		assertTrue(ColumnName.I + " found", s.contains(ColumnName.I + "=42"));
-	}
-
-	@Test
-	public void singleAnyLiteralFindQueryTest() throws TException {
-
-		Quad q = new Quad(graph, subject, Node.ANY, node42);
-		QueryPattern qp = new QueryPattern(q);
-		QueryPattern.QueryInfo qi = qp.new QueryInfo(q);
-		String s = qp.getFindQuery("test", qi) + " ";
-		assertTrue("table missing", s.contains("test.GSPO"));
-		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
-		assertTrue("graph missing", s.contains(graphHex));
-		assertTrue("subject missing", s.contains(subjectHex));
-		assertFalse("predicate found", s.contains(predicateHex));
-		assertFalse("object found", s.contains(objectHex));
-		assertTrue(ColumnName.I + " found", s.contains(ColumnName.I + "=42"));
-
-		q = new Quad(graph, Node.ANY, predicate, node42);
-		qp = new QueryPattern(q);
-		qi = qp.new QueryInfo(q);
-		s = qp.getFindQuery("test", qi) + " ";
-		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
-		assertTrue("table missing", s.contains("test.POGS"));
-		assertFalse("graph found", s.contains(graphHex));
-		assertFalse("subject found", s.contains(subjectHex));
-		assertTrue("predicate missing", s.contains(predicateHex));
-		assertFalse("object found", s.contains(objectHex));
-		assertTrue(ColumnName.I + " found", s.contains(ColumnName.I + "=42"));
-
-		q = new Quad(Node.ANY, subject, predicate, node42);
-		qp = new QueryPattern(q);
-		qi = qp.new QueryInfo(q);
-		s = qp.getFindQuery("test", qi) + " ";
-		assertTrue("table missing", s.contains("test.SPOG"));
-		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
-		assertFalse("graph found", s.contains(graphHex));
-		assertTrue("subject missing", s.contains(subjectHex));
-		assertTrue("predicate missing", s.contains(predicateHex));
-		assertFalse("object found", s.contains(objectHex));
-		assertTrue(ColumnName.I + " found", s.contains(ColumnName.I + "=42"));
-
-	}
-
-	@Test
-	public void doubleAnyLiteralFindQueryTest() throws TException {
-
-		Quad q = new Quad(graph, Node.ANY, Node.ANY, node42);
-		QueryPattern qp = new QueryPattern(q);
-		QueryPattern.QueryInfo qi = qp.new QueryInfo(q);
-		String s = qp.getFindQuery("test", qi) + " ";
-		assertTrue("table missing", s.contains("test.GSPO"));
-		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
-		assertTrue("graph missing", s.contains(graphHex));
-		assertFalse("subject found", s.contains(subjectHex));
-		assertFalse("predicate found", s.contains(predicateHex));
-		assertFalse("object found", s.contains(objectHex));
-		assertTrue(ColumnName.I + " found", s.contains(ColumnName.I + "=42"));
-
-		q = new Quad(Node.ANY, subject, Node.ANY, node42);
-		qp = new QueryPattern(q);
-		qi = qp.new QueryInfo(q);
-		s = qp.getFindQuery("test", qi) + " ";
-		assertTrue("table missing", s.contains("test.SPOG"));
-		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
-		assertFalse("graph found", s.contains(graphHex));
-		assertTrue("subject missing", s.contains(subjectHex));
-		assertFalse("predicate found", s.contains(predicateHex));
-		assertFalse("object found", s.contains(objectHex));
-		assertTrue(ColumnName.I + " found", s.contains(ColumnName.I + "=42"));
-
-		q = new Quad(Node.ANY, Node.ANY, predicate, node42);
-		qp = new QueryPattern(q);
-		qi = qp.new QueryInfo(q);
-		s = qp.getFindQuery("test", qi) + " ";
-		assertTrue("table missing", s.contains("test.POGS"));
-		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
-		assertFalse("graph found", s.contains(graphHex));
-		assertFalse("subject found", s.contains(subjectHex));
-		assertTrue("predicate missing", s.contains(predicateHex));
-		assertFalse("object found", s.contains(objectHex));
-		assertTrue(ColumnName.I + " found", s.contains(ColumnName.I + "=42"));
-	}
-
-	@Test
-	public void tripleAnyLiteralFindQueryTest() throws TException {
-
-		Quad q = new Quad(Node.ANY, Node.ANY, Node.ANY, node42);
-		QueryPattern qp = new QueryPattern(q);
-		QueryPattern.QueryInfo qi = qp.new QueryInfo(q);
-		String s = qp.getFindQuery("test", qi) + " ";
-		assertTrue("table missing", s.contains("test.GSPO"));
-		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
-		assertFalse("graph found", s.contains(graphHex));
-		assertFalse("subject found", s.contains(subjectHex));
-		assertFalse("predicate found", s.contains(predicateHex));
-		assertFalse("object found", s.contains(objectHex));
-		assertTrue(ColumnName.I + " missing", s.contains(ColumnName.I + "=42"));
-		assertTrue("graph scan missing", s.contains(" token(graph) >= -9223372036854775808 "));
-
-	}
-
-	@Test
-	public void singleAnyFindQueryTest() throws TException {
-
-		Quad q = new Quad(graph, subject, predicate, Node.ANY);
-		QueryPattern qp = new QueryPattern(q);
-		QueryPattern.QueryInfo qi = qp.new QueryInfo(q);
-		String s = qp.getFindQuery("test", qi) + " ";
-		assertTrue("table missing", s.contains("test.GSPO"));
-		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
-		assertTrue("graph missing", s.contains(graphHex));
-		assertTrue("subject missing", s.contains(subjectHex));
-		assertTrue("predicate missing", s.contains(predicateHex));
-		assertFalse("object found", s.contains(objectHex));
-		assertFalse(ColumnName.I + " found", s.contains(ColumnName.I.toString()));
-
-		q = new Quad(graph, subject, Node.ANY, object);
-		qp = new QueryPattern(q);
-		qi = qp.new QueryInfo(q);
-		 s = qp.getFindQuery("test", qi) + " ";
-		assertTrue("table missing", s.contains("test.OSGP"));
-		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
-		assertTrue("graph missing", s.contains(graphHex));
-		assertTrue("subject missing", s.contains(subjectHex));
-		assertFalse("predicate found", s.contains(predicateHex));
-		assertTrue("object missing", s.contains(objectHex));
-		assertFalse(ColumnName.I + " found", s.contains(ColumnName.I.toString()));
-
-		q = new Quad(graph, Node.ANY, predicate, object);
-		qp = new QueryPattern(q);
-		qi = qp.new QueryInfo(q);
-		s = qp.getFindQuery("test", qi) + " ";
-		assertTrue("table missing", s.contains("test.POGS"));
-		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
-		assertTrue("graph missing", s.contains(graphHex));
-		assertFalse("subject found", s.contains(subjectHex));
-		assertTrue("predicate missing", s.contains(predicateHex));
-		assertTrue("object missing", s.contains(objectHex));
-		assertFalse(ColumnName.I + " found", s.contains(ColumnName.I.toString()));
-
-		q = new Quad(Node.ANY, subject, predicate, object);
-		qp = new QueryPattern(q);
-		qi = qp.new QueryInfo(q);
-		s = qp.getFindQuery("test", qi) + " ";
-		assertTrue("table missing", s.contains("test.SPOG"));
-		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
-		assertFalse("graph found", s.contains(graphHex));
-		assertTrue("subject missing", s.contains(subjectHex));
-		assertTrue("predicate missing", s.contains(predicateHex));
-		assertTrue("object missing", s.contains(objectHex));
-		assertFalse(ColumnName.I + " found", s.contains(ColumnName.I.toString()));
-
-	}
-
-	@Test
-	public void doubleAnyFindQueryTest() throws TException {
-
-		Quad q = new Quad(graph, subject, Node.ANY, Node.ANY);
-		QueryPattern qp = new QueryPattern(q);
-		QueryPattern.QueryInfo qi = qp.new QueryInfo(q);
-		String s = qp.getFindQuery("test", qi) + " ";
-		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
-		assertTrue("table missing", s.contains("test.GSPO"));
-		assertTrue("graph missing", s.contains(graphHex));
-		assertTrue("subject missing", s.contains(subjectHex));
-		assertFalse("predicate found", s.contains(predicateHex));
-		assertFalse("object found", s.contains(objectHex));
-		assertFalse(ColumnName.I + " found", s.contains(ColumnName.I.toString()));
-
-		/* this one need a filter */
-		q = new Quad(graph, Node.ANY, predicate, Node.ANY);
-		qp = new QueryPattern(q);
-		qi = qp.new QueryInfo(q);
-		 s = qp.getFindQuery("test", qi) + " ";
-		assertTrue("table missing", s.contains("test.POGS"));
-		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
-		assertFalse("graph found", s.contains(graphHex));
-		assertFalse("subject found", s.contains(subjectHex));
-		assertTrue("predicate missing", s.contains(predicateHex));
-		assertFalse("object found", s.contains(objectHex));
-		assertFalse(ColumnName.I + " found", s.contains(ColumnName.I.toString()));
-
-		q = new Quad(Node.ANY, subject, predicate, Node.ANY);
-		qp = new QueryPattern(q);
-		qi = qp.new QueryInfo(q);
-		s = qp.getFindQuery("test", qi) + " ";
-		assertTrue("table missing", s.contains("test.SPOG"));
-		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
-		assertFalse("graph found", s.contains(graphHex));
-		assertTrue("subject missing", s.contains(subjectHex));
-		assertTrue("predicate missing", s.contains(predicateHex));
-		assertFalse("object found", s.contains(objectHex));
-		assertFalse(ColumnName.I + " found", s.contains(ColumnName.I.toString()));
-
-		/*
-		 * this one requires a filter
-		 */
-		q = new Quad(graph, Node.ANY, Node.ANY, object);
-		qp = new QueryPattern(q);
-		qi = qp.new QueryInfo(q);
-		 s = qp.getFindQuery("test", qi) + " ";
-		assertTrue("table missing", s.contains("test.OSGP"));
-		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
-		assertFalse("graph found", s.contains(graphHex));
-		assertFalse("subject found", s.contains(subjectHex));
-		assertFalse("predicate found", s.contains(predicateHex));
-		assertTrue("object missing", s.contains(objectHex));
-		assertFalse(ColumnName.I + " found", s.contains(ColumnName.I.toString()));
-
-		q = new Quad(Node.ANY, subject, Node.ANY, object);
-		qp = new QueryPattern(q);
-		qi = qp.new QueryInfo(q);
-		 s = qp.getFindQuery("test", qi) + " ";
-		assertTrue("table missing", s.contains("test.OSGP"));
-		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
-		assertFalse("graph found", s.contains(graphHex));
-		assertTrue("subject missing", s.contains(subjectHex));
-		assertFalse("predicate found", s.contains(predicateHex));
-		assertTrue("object missing", s.contains(objectHex));
-		assertFalse(ColumnName.I + " found", s.contains(ColumnName.I.toString()));
-
-		q = new Quad(Node.ANY, Node.ANY, predicate, object);
-		qp = new QueryPattern(q);
-		qi = qp.new QueryInfo(q);
-		 s = qp.getFindQuery("test", qi) + " ";
-		assertTrue("table missing", s.contains("test.POGS"));
-		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
-		assertFalse("graph found", s.contains(graphHex));
-		assertFalse("subject found", s.contains(subjectHex));
-		assertTrue("predicate missing", s.contains(predicateHex));
-		assertTrue("object missing", s.contains(objectHex));
-		assertFalse(ColumnName.I + " found", s.contains(ColumnName.I.toString()));
-
-	}
-
-	@Test
-	public void tripleAnyFindQueryTest() throws TException {
-
-		Quad q = new Quad(Node.ANY, Node.ANY, Node.ANY, object);
-		QueryPattern qp = new QueryPattern(q);
-		QueryPattern.QueryInfo qi = qp.new QueryInfo(q);
-		String s = qp.getFindQuery("test", qi) + " ";
-		assertTrue("table missing", s.contains("test.OSGP"));
-		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
-		assertFalse("graph found", s.contains(graphHex));
-		assertFalse("subject found", s.contains(subjectHex));
-		assertFalse("predicate found", s.contains(predicateHex));
-		assertTrue("object missing", s.contains(objectHex));
-		assertFalse(ColumnName.I + " found", s.contains(ColumnName.I.toString()));
-
-		q = new Quad(Node.ANY, Node.ANY, predicate, Node.ANY);
-		qp = new QueryPattern(q);
-		qi = qp.new QueryInfo(q);
-		 s = qp.getFindQuery("test", qi) + " ";
-		assertTrue("table missing", s.contains("test.POGS"));
-		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
-		assertFalse("graph found", s.contains(graphHex));
-		assertFalse("subject found", s.contains(subjectHex));
-		assertTrue("predicate missing", s.contains(predicateHex));
-		assertFalse("object found", s.contains(objectHex));
-		assertFalse(ColumnName.I + " found", s.contains(ColumnName.I.toString()));
-
-		q = new Quad(Node.ANY, subject, Node.ANY, Node.ANY);
-		qp = new QueryPattern(q);
-		qi = qp.new QueryInfo(q);
-		 s = qp.getFindQuery("test", qi) + " ";
-		assertTrue("table missing", s.contains("test.SPOG"));
-		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
-		assertFalse("graph found", s.contains(graphHex));
-		assertTrue("subject missing", s.contains(subjectHex));
-		assertFalse("predicate found", s.contains(predicateHex));
-		assertFalse("object found", s.contains(objectHex));
-		assertFalse(ColumnName.I + " found", s.contains(ColumnName.I.toString()));
-
-		q = new Quad(graph, Node.ANY, Node.ANY, Node.ANY);
-		qp = new QueryPattern(q);
-		qi = qp.new QueryInfo(q);
-		 s = qp.getFindQuery("test", qi) + " ";
-		assertTrue("table missing", s.contains("test.GSPO"));
-		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
-		assertTrue("graph missing", s.contains(graphHex));
-		assertFalse("subject found", s.contains(subjectHex));
-		assertFalse("predicate found", s.contains(predicateHex));
-		assertFalse("object found", s.contains(objectHex));
-		assertFalse(ColumnName.I + " found", s.contains(ColumnName.I.toString()));
-
-	}
-
-	@Test
-	public void quadAnyFindQueryTest() throws TException {
-
-		Quad q = new Quad(Node.ANY, Node.ANY, Node.ANY, Node.ANY);
-		QueryPattern qp = new QueryPattern(q);
-		QueryPattern.QueryInfo qi = qp.new QueryInfo(q);
-		String s = qp.getFindQuery("test", qi) + " ";
-		assertTrue("table missing", s.contains("test.GSPO"));
-		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
-		assertFalse("graph found", s.contains(graphHex));
-		assertFalse("subject found", s.contains(subjectHex));
-		assertFalse("predicate found", s.contains(predicateHex));
-		assertFalse("object found", s.contains(objectHex));
-		assertFalse(ColumnName.I + " found", s.contains(ColumnName.I.toString()));
-		assertTrue("graph scan missing", s.contains(" token(graph) >= -9223372036854775808 "));
-
+	
+	private void assertColumnDataNotFound( ColumnName c, String data, String s )
+	{
+		assertFalse(c+" data found in "+s, s.contains(String.format("%s=%s",  c, data)));		
 	}
 	
 	@Test
-	public void numericInsertTest() throws TException {
-		Quad q = new Quad(graph, subject, predicate, node42);
-		QueryPattern qp = new QueryPattern(q);
-		String s = qp.getInsertStatement("test");
-		String[] lines = s.split("\n");
-		assertEquals(6, lines.length);
-		assertEquals("BEGIN BATCH", lines[0]);
-
-		assertTrue("table missing", lines[1].contains("test.GSPO"));
-		assertTrue("insert columns missing: "+lines[1],
-				lines[1].contains("(subject, predicate, object, graph, " + ColumnName.D + ", " + ColumnName.I + ")"));
-		assertTrue("graphHexValue missing", lines[1].contains(" " + graphHexValue + ", "));
-		assertTrue("subjectHexValue missing", lines[1].contains(" " + subjectHexValue + ", "));
-		assertTrue("predicateHexValue missing", lines[1].contains(" " + predicateHexValue + ", "));
-		assertTrue("node42HexValue missing", lines[1].contains(" " + node42HexValue + ", "));
-		assertTrue("data type missing", lines[1].contains(", 'http://www.w3.org/2001/XMLSchema#int', "));
-		assertTrue("42 missing", lines[1].contains("42);"));
-
-		assertTrue("table missing", lines[2].contains("test.OSGP"));
-		assertTrue("insert columns missing",
-				lines[2].contains("(subject, predicate, object, graph, " + ColumnName.D + ", " + ColumnName.I + ")"));
-		assertTrue("graphHexValue missing", lines[2].contains(" " + graphHexValue + ", "));
-		assertTrue("subjectHexValue missing", lines[2].contains(" " + subjectHexValue + ", "));
-		assertTrue("predicateHexValue missing", lines[2].contains(" " + predicateHexValue + ", "));
-		assertTrue("node42HexValue missing", lines[2].contains(" " + node42HexValue + ", "));
-		assertTrue("data type missing", lines[2].contains(", 'http://www.w3.org/2001/XMLSchema#int', "));
-		assertTrue("42 missing", lines[2].contains("42);"));
-
-		assertTrue("table missing", lines[3].contains("test.POGS"));
-		assertTrue("insert columns missing",
-				lines[3].contains("(subject, predicate, object, graph, " + ColumnName.D + ", " + ColumnName.I + ")"));
-		assertTrue("graphHexValue missing", lines[3].contains(" " + graphHexValue + ", "));
-		assertTrue("subjectHexValue missing", lines[3].contains(" " + subjectHexValue + ", "));
-		assertTrue("predicateHexValue missing", lines[3].contains(" " + predicateHexValue + ", "));
-		assertTrue("node42HexValue missing", lines[3].contains(" " + node42HexValue + ", "));
-		assertTrue("data type missing", lines[3].contains(", 'http://www.w3.org/2001/XMLSchema#int', "));
-		assertTrue("42 missing", lines[3].contains("42);"));
-
-		assertTrue("table missing", lines[4].contains("test.SPOG"));
-		assertTrue("insert columns missing",
-				lines[4].contains("(subject, predicate, object, graph, " + ColumnName.D + ", " + ColumnName.I + ")"));
-		assertTrue("graphHexValue missing", lines[4].contains(" " + graphHexValue + ", "));
-		assertTrue("subjectHexValue missing", lines[4].contains(" " + subjectHexValue + ", "));
-		assertTrue("predicateHexValue missing", lines[4].contains(" " + predicateHexValue + ", "));
-		assertTrue("node42HexValue missing", lines[4].contains(" " + node42HexValue + ", "));
-		assertTrue("data type missing", lines[4].contains(", 'http://www.w3.org/2001/XMLSchema#int', "));
-		assertTrue("42 missing", lines[4].contains("42);"));
-
-		assertEquals("APPLY BATCH;", lines[5]);
-
-	}
-
-	@Test
-	public void literalInsertTest() throws TException {
-		Quad q = new Quad(graph, subject, predicate, nodeLit);
-		QueryPattern qp = new QueryPattern(q);
-		String s = qp.getInsertStatement("test");
-		String[] lines = s.split("\n");
-		assertEquals(6, lines.length);
-		assertEquals("BEGIN BATCH", lines[0]);
-
-		assertTrue("table missing", lines[1].contains("test.GSPO"));
-		assertTrue("insert columns missing: "+lines[1],
-				lines[1].contains("(subject, predicate, object, graph, " + ColumnName.D + ")"));
-		assertTrue("graphHexValue missing", lines[1].contains(" " + graphHexValue + ", "));
-		assertTrue("subjectHexValue missing", lines[1].contains(" " + subjectHexValue + ", "));
-		assertTrue("predicateHexValue missing", lines[1].contains(" " + predicateHexValue + ", "));
-		assertTrue("nodeLitHexValue missing", lines[1].contains(" " + nodeLitHexValue + ", "));
-		assertTrue("data type missing", lines[1].contains(", " + nodeLitDType + ")"));
-
-		assertTrue("table missing", lines[2].contains("test.OSGP"));
-		assertTrue("insert columns missing: "+lines[2],
-				lines[2].contains("(subject, predicate, object, graph, " + ColumnName.D + ")"));
-		assertTrue("graphHexValue missing", lines[2].contains(" " + graphHexValue + ", "));
-		assertTrue("subjectHexValue missing", lines[2].contains(" " + subjectHexValue + ", "));
-		assertTrue("predicateHexValue missing", lines[2].contains(" " + predicateHexValue + ", "));
-		assertTrue("nodeLitHexValue missing", lines[2].contains(" " + nodeLitHexValue + ", "));
-		assertTrue("data type missing", lines[2].contains(", " + nodeLitDType + ")"));
-
-		assertTrue("table missing", lines[3].contains("test.POGS"));
-		assertTrue("insert columns missing: "+lines[3],
-				lines[3].contains("(subject, predicate, object, graph, " + ColumnName.D + ")"));
-		assertTrue("graphHexValue missing", lines[3].contains(" " + graphHexValue + ", "));
-		assertTrue("subjectHexValue missing", lines[3].contains(" " + subjectHexValue + ", "));
-		assertTrue("predicateHexValue missing", lines[3].contains(" " + predicateHexValue + ", "));
-		assertTrue("nodeLitHexValue missing", lines[3].contains(" " + nodeLitHexValue + ", "));
-		assertTrue("data type missing", lines[3].contains(", " + nodeLitDType + ")"));
-
-		assertTrue("table missing", lines[4].contains("test.SPOG"));
-		assertTrue("insert columns missing: "+lines[4],
-				lines[4].contains("(subject, predicate, object, graph, " + ColumnName.D + ")"));
-		assertTrue("graphHexValue missing", lines[4].contains(" " + graphHexValue + ", "));
-		assertTrue("subjectHexValue missing", lines[4].contains(" " + subjectHexValue + ", "));
-		assertTrue("predicateHexValue missing", lines[4].contains(" " + predicateHexValue + ", "));
-		assertTrue("nodeLitHexValue missing", lines[4].contains(" " + nodeLitHexValue + ", "));
-		assertTrue("data type missing", lines[4].contains(", " + nodeLitDType + ")"));
-
-		assertEquals("APPLY BATCH;", lines[5]);
-
-	}
-
-	@Test
-	public void literalWithLangInsertTest() throws TException {
-		Quad q = new Quad(graph, subject, predicate, nodeLitLang);
-		QueryPattern qp = new QueryPattern(q);
-		String s = qp.getInsertStatement("test");
-		String[] lines = s.split("\n");
-		assertEquals(6, lines.length);
-		assertEquals("BEGIN BATCH", lines[0]);
-
-		assertTrue("table missing", lines[1].contains("test.GSPO"));
-		assertTrue("insert columns missing:"+lines[1],
-				lines[1].contains("(subject, predicate, object, graph, " + ColumnName.L + ", " + ColumnName.D + ")"));
-		assertTrue("graphHexValue missing", lines[1].contains(" " + graphHexValue + ", "));
-		assertTrue("subjectHexValue missing", lines[1].contains(" " + subjectHexValue + ", "));
-		assertTrue("predicateHexValue missing", lines[1].contains(" " + predicateHexValue + ", "));
-		assertTrue("nodeLitHexValue missing", lines[1].contains(" " + nodeLitHexValue + ", "));
-		assertTrue("data type missing", lines[1].contains(" " + nodeLitLangDType + ")"));
-		assertTrue("lang missing", lines[1].contains(", 'en-us', "));
-
-		assertTrue("table missing", lines[2].contains("test.OSGP"));
-		assertTrue("insert columns missing:"+lines[2],
-				lines[2].contains("(subject, predicate, object, graph, " + ColumnName.L + ", " + ColumnName.D + ")"));
-		assertTrue("graphHexValue missing", lines[2].contains(" " + graphHexValue + ", "));
-		assertTrue("subjectHexValue missing", lines[2].contains(" " + subjectHexValue + ", "));
-		assertTrue("predicateHexValue missing", lines[2].contains(" " + predicateHexValue + ", "));
-		assertTrue("nodeLitHexValue missing", lines[2].contains(" " + nodeLitHexValue + ", "));
-		assertTrue("data type missing", lines[2].contains(" " + nodeLitLangDType + ")"));
-		assertTrue("lang missing", lines[2].contains(", 'en-us', "));
-
-		assertTrue("table missing", lines[3].contains("test.POGS"));
-		assertTrue("insert columns missing:"+lines[3],
-				lines[3].contains("(subject, predicate, object, graph, " + ColumnName.L + ", " + ColumnName.D + ")"));
-		assertTrue("graphHexValue missing", lines[3].contains(" " + graphHexValue + ", "));
-		assertTrue("subjectHexValue missing", lines[3].contains(" " + subjectHexValue + ", "));
-		assertTrue("predicateHexValue missing", lines[3].contains(" " + predicateHexValue + ", "));
-		assertTrue("nodeLitHexValue missing", lines[3].contains(" " + nodeLitHexValue + ", "));
-		assertTrue("data type missing", lines[3].contains(" " + nodeLitLangDType + ")"));
-		assertTrue("lang missing", lines[3].contains(", 'en-us', "));
-
-		assertTrue("table missing", lines[4].contains("test.SPOG"));
-		assertTrue("insert columns missing:"+lines[4],
-				lines[4].contains("(subject, predicate, object, graph, " + ColumnName.L + ", " + ColumnName.D + ")"));
-		assertTrue("graphHexValue missing", lines[4].contains(" " + graphHexValue + ", "));
-		assertTrue("subjectHexValue missing", lines[4].contains(" " + subjectHexValue + ", "));
-		assertTrue("predicateHexValue missing", lines[4].contains(" " + predicateHexValue + ", "));
-		assertTrue("nodeLitHexValue missing", lines[4].contains(" " + nodeLitHexValue + ", "));
-		assertTrue("data type missing", lines[4].contains(" " + nodeLitLangDType + ")"));
-		assertTrue("lang missing", lines[4].contains(", 'en-us', "));
-
-		assertEquals("APPLY BATCH;", lines[5]);
-
-	}
-
-	@Test
-	public void insertTest() throws TException {
+	public void findGSPOTest() throws TException {
 		Quad q = new Quad(graph, subject, predicate, object);
-		QueryPattern qp = new QueryPattern(q);
+		QueryPattern qp = new QueryPattern(connection, q);
+		QueryPattern.QueryInfo qi = qp.getQueryInfo();
+		// add extra space to match internal tests
+		String s = qp.getFindQuery("test", qi) + " ";
+		assertTrue("table missing", s.contains("test.SPOG"));
+		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
+		assertColumnDataFound( ColumnName.G, graphHexValue, s );
+		assertColumnDataFound( ColumnName.S, subjectHexValue, s );
+		assertColumnDataFound( ColumnName.P, predicateHexValue, s  );
+		assertColumnDataFound( ColumnName.O, objectHexValue, s );
+		assertColumnNotFound( ColumnName.I, s );
+		assertColumnDataNotFound( ColumnName.D, "", s);
+		assertColumnDataNotFound( ColumnName.V, "", s);
+		assertColumnDataNotFound( ColumnName.L, "", s);
+		assertFalse( s.contains( "ALLOW FILTERING"));
+	}
+
+	@Test
+	public void findGSPOSuffixTest() throws TException {
+		Quad q = new Quad(graph, subject, predicate, object);
+		QueryPattern qp = new QueryPattern(connection,q);
+
+		// add extra space to match internal tests
+		QueryPattern.QueryInfo qi = qp.getQueryInfo();
+		qi.suffix="limit 1";
+		String s = qp.getFindQuery("test", qi);
+		assertTrue("table missing", s.contains("test.SPOG"));
+		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
+		assertColumnDataFound( ColumnName.G, graphHexValue, s );
+		assertColumnDataFound( ColumnName.S, subjectHexValue, s );
+		assertColumnDataFound( ColumnName.P, predicateHexValue, s  );
+		assertColumnDataFound( ColumnName.O, objectHexValue, s );
+		assertColumnNotFound( ColumnName.I, s );
+		assertColumnDataNotFound( ColumnName.D, "", s);
+		assertColumnDataNotFound( ColumnName.V, "", s);
+		assertColumnDataNotFound( ColumnName.L, "", s);
+		assertTrue("suffix missing", s.contains(" limit 1"));
+		assertFalse( s.contains( "ALLOW FILTERING"));
+	}
+
+	@Test
+	public void findGSPOExtraTest() throws TException {
+		Quad q = new Quad(graph, subject, predicate, object);
+		QueryPattern qp = new QueryPattern(connection, q);
+		QueryPattern.QueryInfo qi = qp.getQueryInfo();
+		qi.extraWhere="something=Something";
+		String s = qp.getFindQuery("test", qi);
+		assertTrue("table missing", s.contains("test.SPOG"));
+		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
+		assertColumnDataFound( ColumnName.G, graphHexValue, s );
+		assertColumnDataFound( ColumnName.S, subjectHexValue, s );
+		assertColumnDataFound( ColumnName.P, predicateHexValue, s  );
+		assertColumnDataFound( ColumnName.O, objectHexValue, s );
+		assertColumnNotFound( ColumnName.I, s );
+		assertColumnDataNotFound( ColumnName.D, "", s);
+		assertColumnDataNotFound( ColumnName.V, "", s);
+		assertColumnDataNotFound( ColumnName.L, "", s);
+		assertTrue("extra missing", s.contains(" AND something=Something"));
+		assertFalse( s.contains( "ALLOW FILTERING"));
+	}
+
+	@Test
+	public void findGSPOExtraSuffixTest() throws TException {
+		Quad q = new Quad(graph, subject, predicate, object);
+		QueryPattern qp = new QueryPattern(connection,q);
+		QueryPattern.QueryInfo qi = qp.getQueryInfo();
+		qi.extraWhere="something=Something";
+		qi.suffix="limit 1";
+		String s = qp.getFindQuery("test", qi);
+		assertTrue("table missing", s.contains("test.SPOG"));
+		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
+		assertColumnDataFound( ColumnName.G, graphHexValue, s );
+		assertColumnDataFound( ColumnName.S, subjectHexValue, s );
+		assertColumnDataFound( ColumnName.P, predicateHexValue, s  );
+		assertColumnDataFound( ColumnName.O, objectHexValue, s );
+		assertColumnNotFound( ColumnName.I, s );
+		assertColumnDataNotFound( ColumnName.D, "", s);
+		assertColumnDataNotFound( ColumnName.V, "", s);
+		assertColumnDataNotFound( ColumnName.L, "", s);
+		assertTrue("extra missing", s.contains(" AND something=Something "));
+		assertTrue("suffix missing", s.contains(" limit 1"));
+		assertFalse( s.contains( "ALLOW FILTERING"));
+	}
+
+	@Test
+	public void findGSPNumTest() throws TException {
+
+		Quad q = new Quad(graph, subject, predicate, node42);
+		QueryPattern qp = new QueryPattern(connection,q);
+		QueryPattern.QueryInfo qi = qp.getQueryInfo();
+		qi.extraValueFilter = Arrays.asList(ColumnName.L, ColumnName.D, ColumnName.V);
+		qi.tableQuad = new Quad(q.getGraph(), q.getSubject(), q.getPredicate(), Node.ANY);
+		qi.values.remove(ColumnName.O);
+		qi.tableName = CassandraConnection.getTable(CassandraConnection.getId(qi.tableQuad));
+		String s = qp.getFindQuery("test", qi) + " ";
+		assertTrue("table missing", s.contains("test.GSPO"));
+		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
+		assertColumnDataFound( ColumnName.G, graphHexValue, s );
+		assertColumnDataFound( ColumnName.S, subjectHexValue, s );
+		assertColumnDataFound( ColumnName.P, predicateHexValue, s  );
+		assertColumnDataNotFound( ColumnName.O, objectHexValue, s );
+		assertColumnDataFound( ColumnName.I, "42", s  );
+		assertColumnDataNotFound( ColumnName.D, "", s);
+		assertColumnDataNotFound( ColumnName.V, "", s);
+		assertColumnDataNotFound( ColumnName.L, "", s);
+		assertTrue( s.contains( "ALLOW FILTERING"));
+	}
+
+	@Test
+	public void findGSPLitTest() throws TException {
+
+		Quad q = new Quad(graph, subject, predicate, nodeLit);
+		QueryPattern qp = new QueryPattern(connection,q);
+		QueryPattern.QueryInfo qi = qp.getQueryInfo();
+		qi.extraValueFilter = Arrays.asList(ColumnName.L);
+		qi.tableQuad = new Quad(q.getGraph(), q.getSubject(), q.getPredicate(), Node.ANY);
+		qi.values.remove(ColumnName.O);
+		qi.tableName = CassandraConnection.getTable(CassandraConnection.getId(qi.tableQuad));
+		String s = qp.getFindQuery("test", qi) + " ";
+		assertTrue("table missing", s.contains("test.GSPO"));
+		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
+		assertColumnDataFound( ColumnName.G, graphHexValue, s );
+		assertColumnDataFound( ColumnName.S, subjectHexValue, s );
+		assertColumnDataFound( ColumnName.P, predicateHexValue, s  );
+		assertColumnDataNotFound( ColumnName.O, objectHexValue, s );
+		assertColumnNotFound( ColumnName.I, s  );
+		assertColumnDataFound( ColumnName.D, nodeLitDType, s);
+		assertColumnDataFound( ColumnName.V, nodeLitValue, s);
+		assertColumnDataNotFound( ColumnName.L, "", s);
+		assertTrue( s.contains( "ALLOW FILTERING"));
+	}
+	@Test
+	public void findGS_NumTest() throws TException {
+		Quad q = new Quad(graph, subject, Node.ANY, node42);
+		QueryPattern qp = new QueryPattern(connection,q);
+		QueryPattern.QueryInfo qi = qp.getQueryInfo();
+		qi.extraValueFilter = Arrays.asList(ColumnName.L, ColumnName.D, ColumnName.V);
+		qi.tableQuad = new Quad(q.getGraph(), q.getSubject(), q.getPredicate(), Node.ANY);
+		qi.values.remove(ColumnName.O);
+		qi.tableName = CassandraConnection.getTable(CassandraConnection.getId(qi.tableQuad));
+		String s = qp.getFindQuery("test", qi) + " ";
+		assertTrue("table missing", s.contains("test.GSPO"));
+		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));	
+		assertColumnDataFound( ColumnName.G, graphHexValue, s );
+		assertColumnDataFound( ColumnName.S, subjectHexValue, s );
+		assertColumnDataNotFound( ColumnName.P, predicateHexValue, s  );
+		assertColumnDataNotFound( ColumnName.O, objectHexValue, s );
+		assertColumnDataFound( ColumnName.I, "42", s  );
+		assertColumnDataNotFound( ColumnName.D, "", s);
+		assertColumnDataNotFound( ColumnName.V, "", s);
+		assertColumnDataNotFound( ColumnName.L, "", s);
+		assertTrue( s.contains( "ALLOW FILTERING"));
+	}
+
+	@Test
+	public void findG_PNumTest() throws TException {
+		Quad q = new Quad(graph, Node.ANY, predicate, node42);
+		QueryPattern qp = new QueryPattern(connection,q);
+		QueryPattern.QueryInfo qi = qp.getQueryInfo();
+		qi.extraValueFilter = Arrays.asList(ColumnName.L, ColumnName.D, ColumnName.V);
+		qi.tableQuad = new Quad(q.getGraph(), q.getSubject(), q.getPredicate(), Node.ANY);
+		qi.values.remove(ColumnName.O);
+		qi.tableName = CassandraConnection.getTable(CassandraConnection.getId(qi.tableQuad));
+		String s = qp.getFindQuery("test", qi) + " ";
+		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
+		assertTrue("table missing", s.contains("test.POGS"));
+		assertColumnDataFound( ColumnName.G, graphHexValue, s );
+		assertColumnDataNotFound( ColumnName.S, subjectHexValue, s );
+		assertColumnDataFound( ColumnName.P, predicateHexValue, s  );
+		assertColumnDataNotFound( ColumnName.O, objectHexValue, s );
+		assertColumnDataFound( ColumnName.I, "42", s  );
+		assertColumnDataNotFound( ColumnName.D, "", s);
+		assertColumnDataNotFound( ColumnName.V, "", s);
+		assertColumnDataNotFound( ColumnName.L, "", s);
+		assertTrue( s.contains( "ALLOW FILTERING"));
+	}
+	
+	@Test
+	public void find_SPNumTest() throws TException {
+		Quad q = new Quad(Node.ANY, subject, predicate, node42);
+		QueryPattern qp = new QueryPattern(connection,q);
+		QueryPattern.QueryInfo qi = qp.getQueryInfo();
+		qi.extraValueFilter = Arrays.asList(ColumnName.L, ColumnName.D, ColumnName.V);
+		qi.tableQuad = new Quad(q.getGraph(), q.getSubject(), q.getPredicate(), Node.ANY);
+		qi.values.remove(ColumnName.O);
+		qi.tableName = CassandraConnection.getTable(CassandraConnection.getId(qi.tableQuad));
+		String s = qp.getFindQuery("test", qi) + " ";
+		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
+		assertTrue("table missing", s.contains("test.SPOG"));
+		assertColumnDataNotFound( ColumnName.G, graphHexValue, s );
+		assertColumnDataFound( ColumnName.S, subjectHexValue, s );
+		assertColumnDataFound( ColumnName.P, predicateHexValue, s  );
+		assertColumnDataNotFound( ColumnName.O, objectHexValue, s );
+		assertColumnDataFound( ColumnName.I, "42", s  );
+		assertColumnDataNotFound( ColumnName.D, "", s);
+		assertColumnDataNotFound( ColumnName.V, "", s);
+		assertColumnDataNotFound( ColumnName.L, "", s);
+		assertTrue( s.contains( "ALLOW FILTERING"));
+	}
+
+
+	@Test
+	public void findG__NumTest() throws TException {
+		Quad q = new Quad(graph, Node.ANY, Node.ANY, node42);
+		QueryPattern qp = new QueryPattern(connection,q);
+		QueryPattern.QueryInfo qi = qp.getQueryInfo();
+		qi.extraValueFilter = Arrays.asList(ColumnName.L, ColumnName.D, ColumnName.V);
+		qi.tableQuad = new Quad(q.getGraph(), q.getSubject(), q.getPredicate(), Node.ANY);
+		qi.values.remove(ColumnName.O);
+		qi.tableName = CassandraConnection.getTable(CassandraConnection.getId(qi.tableQuad));
+		
+		String s = qp.getFindQuery("test", qi) + " ";
+		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
+		assertTrue("table missing", s.contains("test.GSPO"));
+		assertColumnDataFound( ColumnName.G, graphHexValue, s );
+		assertColumnDataNotFound( ColumnName.S, subjectHexValue, s );
+		assertColumnDataNotFound( ColumnName.P, predicateHexValue, s  );
+		assertColumnDataNotFound( ColumnName.O, objectHexValue, s );
+		assertColumnDataFound( ColumnName.I, "42", s  );
+		assertColumnDataNotFound( ColumnName.D, "", s);
+		assertColumnDataNotFound( ColumnName.V, "", s);
+		assertColumnDataNotFound( ColumnName.L, "", s);
+		assertTrue( s.contains( "ALLOW FILTERING"));
+	}
+	
+	@Test
+	public void find_S_NumTest() throws TException {
+		Quad q = new Quad(Node.ANY, subject, Node.ANY, node42);
+		QueryPattern qp = new QueryPattern(connection,q);
+		QueryPattern.QueryInfo qi = qp.getQueryInfo();
+		qi.extraValueFilter = Arrays.asList(ColumnName.L, ColumnName.D, ColumnName.V);
+		qi.tableQuad = new Quad(q.getGraph(), q.getSubject(), q.getPredicate(), Node.ANY);
+		qi.values.remove(ColumnName.O);
+		qi.tableName = CassandraConnection.getTable(CassandraConnection.getId(qi.tableQuad));
+		String s = qp.getFindQuery("test", qi) + " ";
+		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
+		assertTrue("table missing", s.contains("test.SPOG"));
+		assertColumnDataNotFound( ColumnName.G, graphHexValue, s );
+		assertColumnDataFound( ColumnName.S, subjectHexValue, s );
+		assertColumnDataNotFound( ColumnName.P, predicateHexValue, s  );
+		assertColumnDataNotFound( ColumnName.O, objectHexValue, s );
+		assertColumnDataFound( ColumnName.I, "42", s  );
+		assertColumnDataNotFound( ColumnName.D, "", s);
+		assertColumnDataNotFound( ColumnName.V, "", s);
+		assertColumnDataNotFound( ColumnName.L, "", s);
+		assertTrue( s.contains( "ALLOW FILTERING"));
+	}
+
+	@Test
+	public void find__PNumTest() throws TException {
+		Quad q = new Quad(Node.ANY, Node.ANY, predicate, node42);
+		QueryPattern qp = new QueryPattern(connection,q);
+		QueryPattern.QueryInfo qi = qp.getQueryInfo();
+		qi.extraValueFilter = Arrays.asList(ColumnName.L, ColumnName.D, ColumnName.V);
+		qi.tableQuad = new Quad(q.getGraph(), q.getSubject(), q.getPredicate(), Node.ANY);
+		qi.values.remove(ColumnName.O);
+		qi.tableName = CassandraConnection.getTable(CassandraConnection.getId(qi.tableQuad));
+		String s = qp.getFindQuery("test", qi) + " ";
+		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
+		assertTrue("table missing", s.contains("test.POGS"));
+		assertColumnDataNotFound( ColumnName.G, graphHexValue, s );
+		assertColumnDataNotFound( ColumnName.S, subjectHexValue, s );
+		assertColumnDataFound( ColumnName.P, predicateHexValue, s  );
+		assertColumnDataNotFound( ColumnName.O, objectHexValue, s );
+		assertColumnDataFound( ColumnName.I, "42", s  );
+		assertColumnDataNotFound( ColumnName.D, "", s);
+		assertColumnDataNotFound( ColumnName.V, "", s);
+		assertColumnDataNotFound( ColumnName.L, "", s);
+		assertTrue( s.contains( "ALLOW FILTERING"));
+	}	
+
+	@Test
+	public void find___NumTest() throws TException {
+		Quad q = new Quad(Node.ANY, Node.ANY, Node.ANY, node42);
+		QueryPattern qp = new QueryPattern(connection,q);
+		QueryPattern.QueryInfo qi = qp.getQueryInfo();
+		qi.extraValueFilter = Arrays.asList(ColumnName.L, ColumnName.D, ColumnName.V);
+		qi.tableQuad = new Quad(q.getGraph(), q.getSubject(), q.getPredicate(), Node.ANY);
+		qi.values.remove(ColumnName.O);
+		qi.tableName = CassandraConnection.getTable(CassandraConnection.getId(qi.tableQuad));
+		String s = qp.getFindQuery("test", qi) + " ";
+		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
+		assertTrue("table missing", s.contains("test.GSPO"));
+		assertColumnDataNotFound( ColumnName.G, graphHexValue, s );
+		assertColumnDataNotFound( ColumnName.S, subjectHexValue, s );
+		assertColumnDataNotFound( ColumnName.P, predicateHexValue, s  );
+		assertColumnDataNotFound( ColumnName.O, objectHexValue, s );
+		assertColumnDataFound( ColumnName.I, "42", s  );
+		assertColumnDataNotFound( ColumnName.D, "", s);
+		assertColumnDataNotFound( ColumnName.V, "", s);
+		assertColumnDataNotFound( ColumnName.L, "", s);
+		assertTrue( s.contains( "ALLOW FILTERING"));
+		assertTrue("graph scan missing", s.contains(" token(graph) >= -9223372036854775808 "));
+	}	
+
+	@Test
+	public void findGSP_Test() throws TException {
+		Quad q = new Quad(graph, subject, predicate, Node.ANY);
+		QueryPattern qp = new QueryPattern(connection,q);
+		QueryPattern.QueryInfo qi = qp.getQueryInfo();
+		String s = qp.getFindQuery("test", qi) + " ";
+		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
+		assertTrue("table missing", s.contains("test.GSPO"));
+		assertColumnDataFound( ColumnName.G, graphHexValue, s );
+		assertColumnDataFound( ColumnName.S, subjectHexValue, s );
+		assertColumnDataFound( ColumnName.P, predicateHexValue, s  );
+		assertColumnDataNotFound( ColumnName.O, objectHexValue, s );
+		assertColumnDataNotFound( ColumnName.I, "", s  );
+		assertColumnDataNotFound( ColumnName.D, "", s);
+		assertColumnDataNotFound( ColumnName.V, "", s);
+		assertColumnDataNotFound( ColumnName.L, "", s);
+		assertFalse( s.contains( "ALLOW FILTERING"));
+	}
+
+	@Test
+	public void findGS_OTest() throws TException {
+		Quad q =  new Quad(graph, subject, Node.ANY, object);
+		QueryPattern qp = new QueryPattern(connection,q);
+		QueryPattern.QueryInfo qi = qp.getQueryInfo();
+		String s = qp.getFindQuery("test", qi) + " ";
+		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
+		assertTrue("table missing", s.contains("test.OSGP"));
+		assertColumnDataFound( ColumnName.G, graphHexValue, s );
+		assertColumnDataFound( ColumnName.S, subjectHexValue, s );
+		assertColumnDataNotFound( ColumnName.P, predicateHexValue, s  );
+		assertColumnDataFound( ColumnName.O, objectHexValue, s );
+		assertColumnDataNotFound( ColumnName.I, "", s  );
+		assertColumnDataNotFound( ColumnName.D, "", s);
+		assertColumnDataNotFound( ColumnName.V, "", s);
+		assertColumnDataNotFound( ColumnName.L, "", s);
+		assertFalse( s.contains( "ALLOW FILTERING"));
+	}
+
+	@Test
+	public void findG_POTest() throws TException {
+		Quad q =  new Quad(graph, Node.ANY, predicate, object);
+		QueryPattern qp = new QueryPattern(connection,q);
+		QueryPattern.QueryInfo qi = qp.getQueryInfo();
+		String s = qp.getFindQuery("test", qi) + " ";
+		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
+		assertTrue("table missing", s.contains("test.POGS"));
+		assertColumnDataFound( ColumnName.G, graphHexValue, s );
+		assertColumnDataNotFound( ColumnName.S, subjectHexValue, s );
+		assertColumnDataFound( ColumnName.P, predicateHexValue, s  );
+		assertColumnDataFound( ColumnName.O, objectHexValue, s );
+		assertColumnDataNotFound( ColumnName.I, "", s  );
+		assertColumnDataNotFound( ColumnName.D, "", s);
+		assertColumnDataNotFound( ColumnName.V, "", s);
+		assertColumnDataNotFound( ColumnName.L, "", s);
+		assertFalse( s.contains( "ALLOW FILTERING"));
+	}	
+
+	@Test
+	public void find_SPOTest() throws TException {
+		Quad q =  new Quad(Node.ANY, subject, predicate, object);
+		QueryPattern qp = new QueryPattern(connection,q);
+		QueryPattern.QueryInfo qi = qp.getQueryInfo();
+		String s = qp.getFindQuery("test", qi) + " ";
+		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
+		assertTrue("table missing", s.contains("test.SPOG"));
+		assertColumnDataNotFound( ColumnName.G, graphHexValue, s );
+		assertColumnDataFound( ColumnName.S, subjectHexValue, s );
+		assertColumnDataFound( ColumnName.P, predicateHexValue, s  );
+		assertColumnDataFound( ColumnName.O, objectHexValue, s );
+		assertColumnDataNotFound( ColumnName.I, "", s  );
+		assertColumnDataNotFound( ColumnName.D, "", s);
+		assertColumnDataNotFound( ColumnName.V, "", s);
+		assertColumnDataNotFound( ColumnName.L, "", s);
+		assertFalse( s.contains( "ALLOW FILTERING"));
+	}	
+
+	@Test
+	public void findGS__Test() throws TException {
+		Quad q =  new Quad(graph, subject, Node.ANY, Node.ANY);
+		QueryPattern qp = new QueryPattern(connection,q);
+		QueryPattern.QueryInfo qi = qp.getQueryInfo();
+		String s = qp.getFindQuery("test", qi) + " ";
+		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
+		assertTrue("table missing", s.contains("test.GSPO"));
+		assertColumnDataFound( ColumnName.G, graphHexValue, s );
+		assertColumnDataFound( ColumnName.S, subjectHexValue, s );
+		assertColumnDataNotFound( ColumnName.P, predicateHexValue, s  );
+		assertColumnDataNotFound( ColumnName.O, objectHexValue, s );
+		assertColumnDataNotFound( ColumnName.I, "", s  );
+		assertColumnDataNotFound( ColumnName.D, "", s);
+		assertColumnDataNotFound( ColumnName.V, "", s);
+		assertColumnDataNotFound( ColumnName.L, "", s);
+		assertFalse( s.contains( "ALLOW FILTERING"));
+	}	
+
+	@Test
+	public void findG_P_Test() throws TException {
+		Quad q =  new Quad(graph, Node.ANY, predicate, Node.ANY);
+		QueryPattern qp = new QueryPattern(connection,q);
+		QueryPattern.QueryInfo qi = qp.getQueryInfo();
+		String s = qp.getFindQuery("test", qi) + " ";
+		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
+		assertTrue("table missing", s.contains("test.POGS"));
+		assertColumnDataFound( ColumnName.G, graphHexValue, s );
+		assertColumnDataNotFound( ColumnName.S, subjectHexValue, s );
+		assertColumnDataFound( ColumnName.P, predicateHexValue, s  );
+		assertColumnDataNotFound( ColumnName.O, objectHexValue, s );
+		assertColumnDataNotFound( ColumnName.I, "", s  );
+		assertColumnDataNotFound( ColumnName.D, "", s);
+		assertColumnDataNotFound( ColumnName.V, "", s);
+		assertColumnDataNotFound( ColumnName.L, "", s);
+		assertFalse( s.contains( "ALLOW FILTERING"));
+	}	
+
+	@Test
+	public void find_SP_Test() throws TException {
+		Quad q =  new Quad( Node.ANY, subject, predicate, Node.ANY);
+		QueryPattern qp = new QueryPattern(connection,q);
+		QueryPattern.QueryInfo qi = qp.getQueryInfo();
+		String s = qp.getFindQuery("test", qi) + " ";
+		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
+		assertTrue("table missing", s.contains("test.SPOG"));
+		assertColumnDataNotFound( ColumnName.G, graphHexValue, s );
+		assertColumnDataFound( ColumnName.S, subjectHexValue, s );
+		assertColumnDataFound( ColumnName.P, predicateHexValue, s  );
+		assertColumnDataNotFound( ColumnName.O, objectHexValue, s );
+		assertColumnDataNotFound( ColumnName.I, "", s  );
+		assertColumnDataNotFound( ColumnName.D, "", s);
+		assertColumnDataNotFound( ColumnName.V, "", s);
+		assertColumnDataNotFound( ColumnName.L, "", s);
+		assertFalse( s.contains( "ALLOW FILTERING"));
+	}	
+	
+	@Test
+	public void findG__OTest() throws TException {
+		Quad q =  new Quad( graph, Node.ANY, Node.ANY, object);
+		QueryPattern qp = new QueryPattern(connection,q);
+		QueryPattern.QueryInfo qi = qp.getQueryInfo();
+		String s = qp.getFindQuery("test", qi) + " ";
+		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
+		assertTrue("table missing", s.contains("test.OSGP"));
+		assertColumnDataFound( ColumnName.G, graphHexValue, s );
+		assertColumnDataNotFound( ColumnName.S, subjectHexValue, s );
+		assertColumnDataNotFound( ColumnName.P, predicateHexValue, s  );
+		assertColumnDataFound( ColumnName.O, objectHexValue, s );
+		assertColumnDataNotFound( ColumnName.I, "", s  );
+		assertColumnDataNotFound( ColumnName.D, "", s);
+		assertColumnDataNotFound( ColumnName.V, "", s);
+		assertColumnDataNotFound( ColumnName.L, "", s);
+		assertFalse( s.contains( "ALLOW FILTERING"));
+	}
+
+	@Test
+	public void find_S_OTest() throws TException {
+		Quad q =  new Quad(Node.ANY, subject, Node.ANY, object);
+		QueryPattern qp = new QueryPattern(connection,q);
+		QueryPattern.QueryInfo qi = qp.getQueryInfo();
+		String s = qp.getFindQuery("test", qi) + " ";
+		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
+		assertTrue("table missing", s.contains("test.OSGP"));
+		assertColumnDataNotFound( ColumnName.G, graphHexValue, s );
+		assertColumnDataFound( ColumnName.S, subjectHexValue, s );
+		assertColumnDataNotFound( ColumnName.P, predicateHexValue, s  );
+		assertColumnDataFound( ColumnName.O, objectHexValue, s );
+		assertColumnDataNotFound( ColumnName.I, "", s  );
+		assertColumnDataNotFound( ColumnName.D, "", s);
+		assertColumnDataNotFound( ColumnName.V, "", s);
+		assertColumnDataNotFound( ColumnName.L, "", s);
+		assertFalse( s.contains( "ALLOW FILTERING"));
+	}	
+
+	@Test
+	public void find__POTest() throws TException {
+		Quad q =  new Quad(Node.ANY, Node.ANY, predicate, object);
+		QueryPattern qp = new QueryPattern(connection,q);
+		QueryPattern.QueryInfo qi = qp.getQueryInfo();
+		String s = qp.getFindQuery("test", qi) + " ";
+		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
+		assertTrue("table missing", s.contains("test.POGS"));
+		assertColumnDataNotFound( ColumnName.G, graphHexValue, s );
+		assertColumnDataNotFound( ColumnName.S, subjectHexValue, s );
+		assertColumnDataFound( ColumnName.P, predicateHexValue, s  );
+		assertColumnDataFound( ColumnName.O, objectHexValue, s );
+		assertColumnDataNotFound( ColumnName.I, "", s  );
+		assertColumnDataNotFound( ColumnName.D, "", s);
+		assertColumnDataNotFound( ColumnName.V, "", s);
+		assertColumnDataNotFound( ColumnName.L, "", s);
+		assertFalse( s.contains( "ALLOW FILTERING"));
+	}	
+
+	@Test
+	public void find___OTest() throws TException {
+		Quad q =  new Quad(Node.ANY, Node.ANY, Node.ANY, object);
+		QueryPattern qp = new QueryPattern(connection,q);
+		QueryPattern.QueryInfo qi = qp.getQueryInfo();
+		String s = qp.getFindQuery("test", qi) + " ";
+		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
+		assertTrue("table missing", s.contains("test.OSGP"));
+		assertColumnDataNotFound( ColumnName.G, graphHexValue, s );
+		assertColumnDataNotFound( ColumnName.S, subjectHexValue, s );
+		assertColumnDataNotFound( ColumnName.P, predicateHexValue, s  );
+		assertColumnDataFound( ColumnName.O, objectHexValue, s );
+		assertColumnDataNotFound( ColumnName.I, "", s  );
+		assertColumnDataNotFound( ColumnName.D, "", s);
+		assertColumnDataNotFound( ColumnName.V, "", s);
+		assertColumnDataNotFound( ColumnName.L, "", s);
+		assertFalse( s.contains( "ALLOW FILTERING"));
+	}	
+
+	@Test
+	public void find__P_Test() throws TException {
+		Quad q =  new Quad(Node.ANY, Node.ANY, predicate, Node.ANY);
+		QueryPattern qp = new QueryPattern(connection,q);
+		QueryPattern.QueryInfo qi = qp.getQueryInfo();
+		String s = qp.getFindQuery("test", qi) + " ";
+		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
+		assertTrue("table missing", s.contains("test.POGS"));
+		assertColumnDataNotFound( ColumnName.G, graphHexValue, s );
+		assertColumnDataNotFound( ColumnName.S, subjectHexValue, s );
+		assertColumnDataFound( ColumnName.P, predicateHexValue, s  );
+		assertColumnDataNotFound( ColumnName.O, objectHexValue, s );
+		assertColumnDataNotFound( ColumnName.I, "", s  );
+		assertColumnDataNotFound( ColumnName.D, "", s);
+		assertColumnDataNotFound( ColumnName.V, "", s);
+		assertColumnDataNotFound( ColumnName.L, "", s);
+		assertFalse( s.contains( "ALLOW FILTERING"));
+	}	
+
+	@Test
+	public void find_S__Test() throws TException {
+		Quad q =  new Quad(Node.ANY, subject, Node.ANY, Node.ANY);
+		QueryPattern qp = new QueryPattern(connection,q);
+		QueryPattern.QueryInfo qi = qp.getQueryInfo();
+		String s = qp.getFindQuery("test", qi) + " ";
+		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
+		assertTrue("table missing", s.contains("test.SPOG"));
+		assertColumnDataNotFound( ColumnName.G, graphHexValue, s );
+		assertColumnDataFound( ColumnName.S, subjectHexValue, s );
+		assertColumnDataNotFound( ColumnName.P, predicateHexValue, s  );
+		assertColumnDataNotFound( ColumnName.O, objectHexValue, s );
+		assertColumnDataNotFound( ColumnName.I, "", s  );
+		assertColumnDataNotFound( ColumnName.D, "", s);
+		assertColumnDataNotFound( ColumnName.V, "", s);
+		assertColumnDataNotFound( ColumnName.L, "", s);
+		assertFalse( s.contains( "ALLOW FILTERING"));
+	}	
+
+	@Test
+	public void findG___Test() throws TException {
+		Quad q =  new Quad(graph, Node.ANY, Node.ANY, Node.ANY);
+		QueryPattern qp = new QueryPattern(connection,q);
+		QueryPattern.QueryInfo qi = qp.getQueryInfo();
+		String s = qp.getFindQuery("test", qi) + " ";
+		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
+		assertTrue("table missing", s.contains("test.GSPO"));
+		assertColumnDataFound( ColumnName.G, graphHexValue, s );
+		assertColumnDataNotFound( ColumnName.S, subjectHexValue, s );
+		assertColumnDataNotFound( ColumnName.P, predicateHexValue, s  );
+		assertColumnDataNotFound( ColumnName.O, objectHexValue, s );
+		assertColumnDataNotFound( ColumnName.I, "", s  );
+		assertColumnDataNotFound( ColumnName.D, "", s);
+		assertColumnDataNotFound( ColumnName.V, "", s);
+		assertColumnDataNotFound( ColumnName.L, "", s);
+		assertFalse( s.contains( "ALLOW FILTERING"));
+	}	
+	
+	@Test
+	public void find____Test() throws TException {
+		Quad q =  new Quad(Node.ANY, Node.ANY, Node.ANY, Node.ANY);
+		QueryPattern qp = new QueryPattern(connection,q);
+		QueryPattern.QueryInfo qi = qp.getQueryInfo();
+		String s = qp.getFindQuery("test", qi) + " ";
+		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
+		assertTrue("table missing", s.contains("test.GSPO"));
+		assertColumnDataNotFound( ColumnName.G, graphHexValue, s );
+		assertColumnDataNotFound( ColumnName.S, subjectHexValue, s );
+		assertColumnDataNotFound( ColumnName.P, predicateHexValue, s  );
+		assertColumnDataNotFound( ColumnName.O, objectHexValue, s );
+		assertColumnDataNotFound( ColumnName.I, "", s  );
+		assertColumnDataNotFound( ColumnName.D, "", s);
+		assertColumnDataNotFound( ColumnName.V, "", s);
+		assertColumnDataNotFound( ColumnName.L, "", s);
+		assertTrue("graph scan missing", s.contains(" token(graph) >= -9223372036854775808 "));
+		assertFalse( s.contains( "ALLOW FILTERING"));
+	}	
+
+	@Test
+	public void findGS_LitTest() throws TException {
+		Quad q = new Quad(graph, subject, Node.ANY, nodeLit);
+		QueryPattern qp = new QueryPattern(connection,q);
+		QueryPattern.QueryInfo qi = qp.getQueryInfo();
+		qi.extraValueFilter = Arrays.asList(ColumnName.L);
+		qi.tableQuad = new Quad(q.getGraph(), q.getSubject(), q.getPredicate(), Node.ANY);
+		qi.values.remove(ColumnName.O);
+		qi.tableName = CassandraConnection.getTable(CassandraConnection.getId(qi.tableQuad));
+		String s = qp.getFindQuery("test", qi) + " ";
+		assertTrue("table missing", s.contains("test.GSPO"));
+		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));	
+		assertColumnDataFound( ColumnName.G, graphHexValue, s );
+		assertColumnDataFound( ColumnName.S, subjectHexValue, s );
+		assertColumnDataNotFound( ColumnName.P, predicateHexValue, s  );
+		assertColumnDataNotFound( ColumnName.O, objectHexValue, s );
+		assertColumnNotFound( ColumnName.I, s  );
+		assertColumnDataFound( ColumnName.D, nodeLitDType, s);
+		assertColumnDataFound( ColumnName.V, nodeLitValue, s);
+		assertColumnDataNotFound( ColumnName.L, "", s);
+		assertTrue( s.contains( "ALLOW FILTERING"));
+	}
+
+	@Test
+	public void findG_PLitTest() throws TException {
+		Quad q = new Quad(graph, Node.ANY, predicate, nodeLit);
+		QueryPattern qp = new QueryPattern(connection,q);
+		QueryPattern.QueryInfo qi = qp.getQueryInfo();
+		qi.extraValueFilter = Arrays.asList(ColumnName.L);
+		String s = qp.getFindQuery("test", qi) + " ";
+		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
+		assertTrue("table missing", s.contains("test.POGS"));
+		assertColumnDataFound( ColumnName.G, graphHexValue, s );
+		assertColumnDataNotFound( ColumnName.S, subjectHexValue, s );
+		assertColumnDataFound( ColumnName.P, predicateHexValue, s  );
+		assertColumnDataNotFound( ColumnName.O, objectHexValue, s );
+		assertColumnNotFound( ColumnName.I, s  );
+		assertColumnDataFound( ColumnName.D, nodeLitDType, s);
+		assertColumnDataFound( ColumnName.V, nodeLitValue, s);
+		assertColumnDataNotFound( ColumnName.L, "", s);
+		assertTrue( s.contains( "ALLOW FILTERING"));
+	}
+	
+	@Test
+	public void find_SPLitTest() throws TException {
+		Quad q = new Quad(Node.ANY, subject, predicate, nodeLit);
+		QueryPattern qp = new QueryPattern(connection,q);
+		QueryPattern.QueryInfo qi = qp.getQueryInfo();
+		qi.extraValueFilter = Arrays.asList(ColumnName.L);
+		String s = qp.getFindQuery("test", qi) + " ";
+		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
+		assertTrue("table missing", s.contains("test.SPOG"));
+		assertColumnDataNotFound( ColumnName.G, graphHexValue, s );
+		assertColumnDataFound( ColumnName.S, subjectHexValue, s );
+		assertColumnDataFound( ColumnName.P, predicateHexValue, s  );
+		assertColumnDataNotFound( ColumnName.O, objectHexValue, s );
+		assertColumnNotFound( ColumnName.I, s  );
+		assertColumnDataFound( ColumnName.D, nodeLitDType, s);
+		assertColumnDataFound( ColumnName.V, nodeLitValue, s);
+		assertColumnDataNotFound( ColumnName.L, "", s);
+		assertTrue( s.contains( "ALLOW FILTERING"));
+	}
+
+
+	@Test
+	public void findG__LitTest() throws TException {
+		Quad q = new Quad(graph, Node.ANY, Node.ANY, nodeLit);
+		QueryPattern qp = new QueryPattern(connection,q);
+		QueryPattern.QueryInfo qi = qp.getQueryInfo();
+		qi.extraValueFilter = Arrays.asList(ColumnName.L);
+		qi.tableQuad = new Quad(q.getGraph(), q.getSubject(), q.getPredicate(), Node.ANY);
+		qi.values.remove(ColumnName.O);
+		qi.tableName = CassandraConnection.getTable(CassandraConnection.getId(qi.tableQuad));
+		String s = qp.getFindQuery("test", qi) + " ";
+		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
+		assertTrue("table missing", s.contains("test.GSPO"));
+		assertColumnDataFound( ColumnName.G, graphHexValue, s );
+		assertColumnDataNotFound( ColumnName.S, subjectHexValue, s );
+		assertColumnDataNotFound( ColumnName.P, predicateHexValue, s  );
+		assertColumnDataNotFound( ColumnName.O, objectHexValue, s );
+		assertColumnNotFound( ColumnName.I, s  );
+		assertColumnDataFound( ColumnName.D, nodeLitDType, s);
+		assertColumnDataFound( ColumnName.V, nodeLitValue, s);
+		assertColumnDataNotFound( ColumnName.L, "", s);
+		assertTrue( s.contains( "ALLOW FILTERING"));
+	}
+	
+	@Test
+	public void find_S_LitTest() throws TException {
+		Quad q = new Quad(Node.ANY, subject, Node.ANY, nodeLit);
+		QueryPattern qp = new QueryPattern(connection,q);
+		QueryPattern.QueryInfo qi = qp.getQueryInfo();
+		qi.extraValueFilter = Arrays.asList(ColumnName.L);
+		qi.tableQuad = new Quad(q.getGraph(), q.getSubject(), q.getPredicate(), Node.ANY);
+		qi.values.remove(ColumnName.O);
+		qi.tableName = CassandraConnection.getTable(CassandraConnection.getId(qi.tableQuad));
+		String s = qp.getFindQuery("test", qi) + " ";
+		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
+		assertTrue("table missing", s.contains("test.SPOG"));
+		assertColumnDataNotFound( ColumnName.G, graphHexValue, s );
+		assertColumnDataFound( ColumnName.S, subjectHexValue, s );
+		assertColumnDataNotFound( ColumnName.P, predicateHexValue, s  );
+		assertColumnDataNotFound( ColumnName.O, objectHexValue, s );
+		assertColumnNotFound( ColumnName.I, s  );
+		assertColumnDataFound( ColumnName.D, nodeLitDType, s);
+		assertColumnDataFound( ColumnName.V, nodeLitValue, s);
+		assertColumnDataNotFound( ColumnName.L, "", s);
+		assertTrue( s.contains( "ALLOW FILTERING"));
+	}
+
+	@Test
+	public void find__PLitTest() throws TException {
+		Quad q = new Quad(Node.ANY, Node.ANY, predicate, nodeLit);
+		QueryPattern qp = new QueryPattern(connection,q);
+		QueryPattern.QueryInfo qi = qp.getQueryInfo();
+		qi.extraValueFilter = Arrays.asList(ColumnName.L);
+		String s = qp.getFindQuery("test", qi) + " ";
+		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
+		assertTrue("table missing", s.contains("test.POGS"));
+		assertColumnDataNotFound( ColumnName.G, graphHexValue, s );
+		assertColumnDataNotFound( ColumnName.S, subjectHexValue, s );
+		assertColumnDataFound( ColumnName.P, predicateHexValue, s  );
+		assertColumnDataNotFound( ColumnName.O, objectHexValue, s );
+		assertColumnNotFound( ColumnName.I, s  );
+		assertColumnDataFound( ColumnName.D, nodeLitDType, s);
+		assertColumnDataFound( ColumnName.V, nodeLitValue, s);
+		assertColumnDataNotFound( ColumnName.L, "", s);
+		assertTrue( s.contains( "ALLOW FILTERING"));
+	}	
+
+	@Test
+	public void find___LitTest() throws TException {
+		Quad q = new Quad(Node.ANY, Node.ANY, Node.ANY, nodeLit);
+		QueryPattern qp = new QueryPattern(connection,q);
+		QueryPattern.QueryInfo qi = qp.getQueryInfo();
+		qi.extraValueFilter = Arrays.asList(ColumnName.L);
+		qi.tableQuad = new Quad(q.getGraph(), q.getSubject(), q.getPredicate(), Node.ANY);
+		qi.values.remove(ColumnName.O);
+		qi.tableName = CassandraConnection.getTable(CassandraConnection.getId(qi.tableQuad));
+		String s = qp.getFindQuery("test", qi) + " ";
+		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
+		assertTrue("table missing", s.contains("test.GSPO"));
+		assertColumnDataNotFound( ColumnName.G, graphHexValue, s );
+		assertColumnDataNotFound( ColumnName.S, subjectHexValue, s );
+		assertColumnDataNotFound( ColumnName.P, predicateHexValue, s  );
+		assertColumnDataNotFound( ColumnName.O, objectHexValue, s );
+		assertColumnNotFound( ColumnName.I, s  );
+		assertColumnDataFound( ColumnName.D, nodeLitDType, s);
+		assertColumnDataFound( ColumnName.V, nodeLitValue, s);
+		assertColumnDataNotFound( ColumnName.L, "", s);
+		assertTrue( s.contains( "ALLOW FILTERING"));
+		assertTrue("graph scan missing", s.contains(" token(graph) >= -9223372036854775808 "));
+	}	
+	
+
+	@Test
+	public void findGS_LitLangTest() throws TException {
+		Quad q = new Quad(graph, subject, Node.ANY, nodeLitLang);
+		QueryPattern qp = new QueryPattern(connection,q);
+		QueryPattern.QueryInfo qi = qp.getQueryInfo();
+		qi.extraValueFilter = Arrays.asList(ColumnName.L);
+		qi.tableQuad = new Quad(q.getGraph(), q.getSubject(), q.getPredicate(), Node.ANY);
+		qi.values.remove(ColumnName.O);
+		qi.tableName = CassandraConnection.getTable(CassandraConnection.getId(qi.tableQuad));
+		String s = qp.getFindQuery("test", qi) + " ";
+		assertTrue("table missing", s.contains("test.GSPO"));
+		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));	
+		assertColumnDataFound( ColumnName.G, graphHexValue, s );
+		assertColumnDataFound( ColumnName.S, subjectHexValue, s );
+		assertColumnDataNotFound( ColumnName.P, predicateHexValue, s  );
+		assertColumnDataNotFound( ColumnName.O, objectHexValue, s );
+		assertColumnNotFound( ColumnName.I, s  );
+		assertColumnDataFound( ColumnName.D, nodeLitLangDType, s);
+		assertColumnDataFound( ColumnName.V, nodeLitValue, s);
+		assertColumnDataNotFound( ColumnName.L, "", s);
+		assertTrue( s.contains( "ALLOW FILTERING"));
+	}
+
+	@Test
+	public void findG_PLitLangTest() throws TException {
+		Quad q = new Quad(graph, Node.ANY, predicate, nodeLitLang);
+		QueryPattern qp = new QueryPattern(connection,q);
+		QueryPattern.QueryInfo qi = qp.getQueryInfo();
+		qi.extraValueFilter = Arrays.asList(ColumnName.L);
+		String s = qp.getFindQuery("test", qi) + " ";
+		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
+		assertTrue("table missing", s.contains("test.POGS"));
+		assertColumnDataFound( ColumnName.G, graphHexValue, s );
+		assertColumnDataNotFound( ColumnName.S, subjectHexValue, s );
+		assertColumnDataFound( ColumnName.P, predicateHexValue, s  );
+		assertColumnDataNotFound( ColumnName.O, objectHexValue, s );
+		assertColumnNotFound( ColumnName.I, s  );
+		assertColumnDataFound( ColumnName.D, nodeLitLangDType, s);
+		assertColumnDataFound( ColumnName.V, nodeLitValue, s);
+		assertColumnDataNotFound( ColumnName.L, "", s);
+		assertTrue( s.contains( "ALLOW FILTERING"));
+	}
+	
+	@Test
+	public void find_SPLitLangTest() throws TException {
+		Quad q = new Quad(Node.ANY, subject, predicate, nodeLitLang);
+		QueryPattern qp = new QueryPattern(connection,q);
+		QueryPattern.QueryInfo qi = qp.getQueryInfo();
+		qi.extraValueFilter = Arrays.asList(ColumnName.L);
+		String s = qp.getFindQuery("test", qi) + " ";
+		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
+		assertTrue("table missing", s.contains("test.SPOG"));
+		assertColumnDataNotFound( ColumnName.G, graphHexValue, s );
+		assertColumnDataFound( ColumnName.S, subjectHexValue, s );
+		assertColumnDataFound( ColumnName.P, predicateHexValue, s  );
+		assertColumnDataNotFound( ColumnName.O, objectHexValue, s );
+		assertColumnNotFound( ColumnName.I, s  );
+		assertColumnDataFound( ColumnName.D, nodeLitLangDType, s);
+		assertColumnDataFound( ColumnName.V, nodeLitValue, s);
+		assertColumnDataNotFound( ColumnName.L, "", s);
+		assertTrue( s.contains( "ALLOW FILTERING"));
+	}
+
+
+	@Test
+	public void findG__LitLangTest() throws TException {
+		Quad q = new Quad(graph, Node.ANY, Node.ANY, nodeLitLang);
+		QueryPattern qp = new QueryPattern(connection,q);
+		QueryPattern.QueryInfo qi = qp.getQueryInfo();
+		qi.extraValueFilter = Arrays.asList(ColumnName.L);
+		qi.tableQuad = new Quad(q.getGraph(), q.getSubject(), q.getPredicate(), Node.ANY);
+		qi.values.remove(ColumnName.O);
+		qi.tableName = CassandraConnection.getTable(CassandraConnection.getId(qi.tableQuad));
+		String s = qp.getFindQuery("test", qi) + " ";
+		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
+		assertTrue("table missing", s.contains("test.GSPO"));
+		assertColumnDataFound( ColumnName.G, graphHexValue, s );
+		assertColumnDataNotFound( ColumnName.S, subjectHexValue, s );
+		assertColumnDataNotFound( ColumnName.P, predicateHexValue, s  );
+		assertColumnDataNotFound( ColumnName.O, objectHexValue, s );
+		assertColumnNotFound( ColumnName.I, s  );
+		assertColumnDataFound( ColumnName.D, nodeLitLangDType, s);
+		assertColumnDataFound( ColumnName.V, nodeLitValue, s);
+		assertColumnDataNotFound( ColumnName.L, "", s);
+		assertTrue( s.contains( "ALLOW FILTERING"));
+	}
+	
+	@Test
+	public void find_S_LitLangTest() throws TException {
+		Quad q = new Quad(Node.ANY, subject, Node.ANY, nodeLitLang);
+		QueryPattern qp = new QueryPattern(connection,q);
+		QueryPattern.QueryInfo qi = qp.getQueryInfo();
+		qi.extraValueFilter = Arrays.asList(ColumnName.L);
+		qi.tableQuad = new Quad(q.getGraph(), q.getSubject(), q.getPredicate(), Node.ANY);
+		qi.values.remove(ColumnName.O);
+		qi.tableName = CassandraConnection.getTable(CassandraConnection.getId(qi.tableQuad));
+		String s = qp.getFindQuery("test", qi) + " ";
+		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
+		assertTrue("table missing", s.contains("test.SPOG"));
+		assertColumnDataNotFound( ColumnName.G, graphHexValue, s );
+		assertColumnDataFound( ColumnName.S, subjectHexValue, s );
+		assertColumnDataNotFound( ColumnName.P, predicateHexValue, s  );
+		assertColumnDataNotFound( ColumnName.O, objectHexValue, s );
+		assertColumnNotFound( ColumnName.I, s  );
+		assertColumnDataFound( ColumnName.D, nodeLitLangDType, s);
+		assertColumnDataFound( ColumnName.V, nodeLitValue, s);
+		assertColumnDataNotFound( ColumnName.L, "", s);
+		assertTrue( s.contains( "ALLOW FILTERING"));
+	}
+
+	@Test
+	public void find__PLitLangTest() throws TException {
+		Quad q = new Quad(Node.ANY, Node.ANY, predicate, nodeLitLang);
+		QueryPattern qp = new QueryPattern(connection,q);
+		QueryPattern.QueryInfo qi = qp.getQueryInfo();
+		qi.extraValueFilter = Arrays.asList(ColumnName.L);
+		String s = qp.getFindQuery("test", qi) + " ";
+		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
+		assertTrue("table missing", s.contains("test.POGS"));
+		assertColumnDataNotFound( ColumnName.G, graphHexValue, s );
+		assertColumnDataNotFound( ColumnName.S, subjectHexValue, s );
+		assertColumnDataFound( ColumnName.P, predicateHexValue, s  );
+		assertColumnDataNotFound( ColumnName.O, objectHexValue, s );
+		assertColumnNotFound( ColumnName.I, s  );
+		assertColumnDataFound( ColumnName.D, nodeLitLangDType, s);
+		assertColumnDataFound( ColumnName.V, nodeLitValue, s);
+		assertColumnDataNotFound( ColumnName.L, "", s);
+		assertTrue( s.contains( "ALLOW FILTERING"));
+	}	
+
+	@Test
+	public void find___LitLangTest() throws TException {
+		Quad q = new Quad(Node.ANY, Node.ANY, Node.ANY, nodeLitLang);
+		QueryPattern qp = new QueryPattern(connection,q);
+		QueryPattern.QueryInfo qi = qp.getQueryInfo();
+		qi.extraValueFilter = Arrays.asList(ColumnName.L);
+		qi.tableQuad = new Quad(q.getGraph(), q.getSubject(), q.getPredicate(), Node.ANY);
+		qi.values.remove(ColumnName.O);
+		qi.tableName = CassandraConnection.getTable(CassandraConnection.getId(qi.tableQuad));
+		String s = qp.getFindQuery("test", qi) + " ";
+		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
+		assertTrue("table missing", s.contains("test.GSPO"));
+		assertColumnDataNotFound( ColumnName.G, graphHexValue, s );
+		assertColumnDataNotFound( ColumnName.S, subjectHexValue, s );
+		assertColumnDataNotFound( ColumnName.P, predicateHexValue, s  );
+		assertColumnDataNotFound( ColumnName.O, objectHexValue, s );
+		assertColumnNotFound( ColumnName.I, s  );
+		assertColumnDataFound( ColumnName.D, nodeLitLangDType, s);
+		assertColumnDataFound( ColumnName.V, nodeLitValue, s);
+		assertColumnDataNotFound( ColumnName.L, "", s);
+		assertTrue( s.contains( "ALLOW FILTERING"));
+		assertTrue("graph scan missing", s.contains(" token(graph) >= -9223372036854775808 "));
+	}	
+	
+	public void verifyInsertNumericValues(String line )
+	{
+		assertTrue("insert columns missing: "+line,
+				line.contains("(subject, predicate, object, graph, " + ColumnName.D + ", " + ColumnName.I + ", "+ ColumnName.V+")"));
+		assertTrue("graphHexValue missing from "+line, line.contains(" " + graphHexValue + ", "));
+		assertTrue("subjectHexValue missing from "+line, line.contains("(" + subjectHexValue + ", "));
+		assertTrue("predicateHexValue missing from "+line, line.contains(" " + predicateHexValue + ", "));
+		assertTrue("node42HexValue missing from "+line, line.contains(" " + node42HexValue + ", "));
+		assertTrue("data type missing from "+line, line.contains(", "+node42DType+", "));
+		assertTrue("42 missing from "+line, line.contains(" 42,"));
+		assertTrue("literal value missing from "+line, line.contains( ", "+node42LitValue+");"));
+		assertColumnNotFound( ColumnName.L, line);
+	}
+	
+	@Test
+	public void insertNumTest() throws TException {
+		Quad q = new Quad(graph, subject, predicate, node42);
+		QueryPattern qp = new QueryPattern(connection,q);
 		String s = qp.getInsertStatement("test");
 		String[] lines = s.split("\n");
 		assertEquals(6, lines.length);
 		assertEquals("BEGIN BATCH", lines[0]);
 
-		assertTrue("table missing", lines[1].contains("test.GSPO"));
-		assertTrue("insert columns missing", lines[1].contains("(subject, predicate, object, graph)"));
-		assertTrue("graphHexValue missing", lines[1].contains(" " + graphHexValue + ");"));
-		assertTrue("subjectHexValue missing", lines[1].contains(" " + subjectHexValue + ", "));
-		assertTrue("predicateHexValue missing", lines[1].contains(" " + predicateHexValue + ", "));
-		assertTrue("objectHexValue missing", lines[1].contains(" " + objectHexValue + ", "));
-		assertFalse("42 found", lines[1].contains("42);"));
+		assertTrue("table missing", lines[1].contains("test.SPOG"));
+		verifyInsertNumericValues(lines[1]);
 
-		assertTrue("table missing", lines[2].contains("test.OSGP"));
-		assertTrue("insert columns missing", lines[2].contains("(subject, predicate, object, graph)"));
-		assertTrue("graphHexValue missing", lines[2].contains(" " + graphHexValue + ");"));
-		assertTrue("subjectHexValue missing", lines[2].contains(" " + subjectHexValue + ", "));
-		assertTrue("predicateHexValue missing", lines[2].contains(" " + predicateHexValue + ", "));
-		assertTrue("objectHexValue missing", lines[2].contains(" " + objectHexValue + ", "));
-		assertFalse("42 found", lines[2].contains("42);"));
+		assertTrue("table missing", lines[2].contains("test.POGS"));
+		verifyInsertNumericValues(lines[2]);
 
-		assertTrue("table missing", lines[3].contains("test.POGS"));
-		assertTrue("insert columns missing", lines[3].contains("(subject, predicate, object, graph)"));
-		assertTrue("graphHexValue missing", lines[3].contains(" " + graphHexValue + ");"));
-		assertTrue("subjectHexValue missing", lines[3].contains(" " + subjectHexValue + ", "));
-		assertTrue("predicateHexValue missing", lines[3].contains(" " + predicateHexValue + ", "));
-		assertTrue("objectHexValue missing", lines[3].contains(" " + objectHexValue + ", "));
-		assertFalse("42 found", lines[3].contains("42);"));
+		assertTrue("table missing", lines[3].contains("test.OSGP"));
+		verifyInsertNumericValues(lines[3]);
 
-		assertTrue("table missing", lines[4].contains("test.SPOG"));
-		assertTrue("insert columns missing", lines[4].contains("(subject, predicate, object, graph)"));
-		assertTrue("graphHexValue missing", lines[4].contains(" " + graphHexValue + ");"));
-		assertTrue("subjectHexValue missing", lines[4].contains(" " + subjectHexValue + ", "));
-		assertTrue("predicateHexValue missing", lines[4].contains(" " + predicateHexValue + ", "));
-		assertTrue("objectHexValue missing", lines[4].contains(" " + objectHexValue + ", "));
-		assertFalse("42 found", lines[4].contains("42);"));
+		assertTrue("table missing", lines[4].contains("test.GSPO"));
+		verifyInsertNumericValues(lines[4]);
 
 		assertEquals("APPLY BATCH;", lines[5]);
 
+	}
+	
+	private void verifyInsertLitValues(String line )
+	{
+		assertTrue("insert columns missing: "+line,
+				line.contains("(subject, predicate, object, graph, " + ColumnName.D + ", " + ColumnName.V+")"));
+		assertTrue("graphHexValue missing from "+line, line.contains(" " + graphHexValue + ", "));
+		assertTrue("subjectHexValue missing from "+line, line.contains("(" + subjectHexValue + ", "));
+		assertTrue("predicateHexValue missing from "+line, line.contains(" " + predicateHexValue + ", "));
+		assertTrue("litHexValue missing from "+line, line.contains(" " + nodeLitHexValue + ", "));
+		assertTrue("data type missing from "+line, line.contains(", "+nodeLitDType+", "));
+		assertTrue("literal value missing from "+line, line.contains( ", "+nodeLitValue+");"));
+		assertColumnNotFound( ColumnName.I, line);
+		assertColumnNotFound( ColumnName.L, line);
+	}
+
+	@Test
+	public void insertLitTest() throws TException {
+		Quad q = new Quad(graph, subject, predicate, nodeLit);
+		QueryPattern qp = new QueryPattern(connection,q);
+		String s = qp.getInsertStatement("test");
+		String[] lines = s.split("\n");
+		assertEquals(6, lines.length);
+		assertEquals("BEGIN BATCH", lines[0]);
+
+		assertTrue("table missing", lines[1].contains("test.SPOG"));
+		verifyInsertLitValues( lines[1] );
+		
+		assertTrue("table missing", lines[2].contains("test.POGS"));
+		verifyInsertLitValues( lines[2] );
+
+		assertTrue("table missing", lines[3].contains("test.OSGP"));
+		verifyInsertLitValues( lines[3] );
+		
+		assertTrue("table missing", lines[4].contains("test.GSPO"));
+		verifyInsertLitValues( lines[4] );
+		
+		assertEquals("APPLY BATCH;", lines[5]);
+
+	}
+	
+	private void verifyInsertLitLangValues(String line )
+	{
+		assertTrue("insert columns missing: "+line,
+				line.contains("(subject, predicate, object, graph, " + ColumnName.L + ", "+ ColumnName.D  + ", " +ColumnName.V+")"));
+		assertTrue("graphHexValue missing from "+line, line.contains(" " + graphHexValue + ", "));
+		assertTrue("subjectHexValue missing from "+line, line.contains("(" + subjectHexValue + ", "));
+		assertTrue("predicateHexValue missing from "+line, line.contains(" " + predicateHexValue + ", "));
+		assertTrue("litHexValue missing from "+line, line.contains(" " + nodeLitLangHexValue + ", "));
+		assertTrue("data type missing from "+line, line.contains(", "+nodeLitLangDType+", "));
+		assertTrue("language type missing from "+line, line.contains( ", 'en-US', "));
+		assertTrue("literal value missing from "+line, line.contains( ", "+nodeLitValue+");"));
+		assertColumnNotFound( ColumnName.I, line);
+	}
+	
+	@Test
+	public void insertLitLangText() throws TException {
+		Quad q = new Quad(graph, subject, predicate, nodeLitLang);
+		QueryPattern qp = new QueryPattern(connection,q);
+		String s = qp.getInsertStatement("test");
+		String[] lines = s.split("\n");
+		assertEquals(6, lines.length);
+		assertEquals("BEGIN BATCH", lines[0]);
+
+		assertTrue("table missing", lines[1].contains("test.SPOG"));
+		verifyInsertLitLangValues( lines[1] );
+		
+		assertTrue("table missing", lines[2].contains("test.POGS"));
+		verifyInsertLitLangValues( lines[2] );
+
+		assertTrue("table missing", lines[3].contains("test.OSGP"));
+		verifyInsertLitLangValues( lines[3] );
+		
+		assertTrue("table missing", lines[4].contains("test.GSPO"));
+		verifyInsertLitLangValues( lines[4] );
+		
+		assertEquals("APPLY BATCH;", lines[5]);
+
+	}
+	
+	private void verifyInsertObjectValues(String line )
+	{
+		assertTrue("insert columns missing: "+line,
+				line.contains("(subject, predicate, object, graph)"));
+		assertTrue("graphHexValue missing from "+line, line.contains(" " + graphHexValue + ");"));
+		assertTrue("subjectHexValue missing from "+line, line.contains("(" + subjectHexValue + ", "));
+		assertTrue("predicateHexValue missing from "+line, line.contains(" " + predicateHexValue + ", "));
+		assertTrue("objectHexValue missing from "+line, line.contains(" " + objectHexValue + ", "));
+		assertColumnNotFound( ColumnName.I, line);
+		assertColumnNotFound( ColumnName.L, line);
+		assertColumnNotFound( ColumnName.D, line);
+		assertColumnNotFound( ColumnName.V, line);
+	}
+
+	@Test
+	public void insertObjectTest() throws TException {
+		Quad q = new Quad(graph, subject, predicate, object);
+		QueryPattern qp = new QueryPattern(connection,q);
+		String s = qp.getInsertStatement("test");
+		String[] lines = s.split("\n");
+		assertEquals(6, lines.length);
+		assertEquals("BEGIN BATCH", lines[0]);
+
+		assertTrue("table missing", lines[1].contains("test.SPOG"));
+		verifyInsertObjectValues( lines[1] );
+		
+		assertTrue("table missing", lines[2].contains("test.POGS"));
+		verifyInsertObjectValues( lines[2] );
+
+		assertTrue("table missing", lines[3].contains("test.OSGP"));
+		verifyInsertObjectValues( lines[3] );
+		
+		assertTrue("table missing", lines[4].contains("test.GSPO"));
+		verifyInsertObjectValues( lines[4] );
+		
+		assertEquals("APPLY BATCH;", lines[5]);
+
+	}
+	
+	private void verifyDeleteStatement( String line, String objectValue )
+	{
+		assertColumnDataFound( ColumnName.S, subjectHexValue, line );
+		assertColumnDataFound( ColumnName.P, predicateHexValue, line );
+		assertColumnDataFound( ColumnName.O, objectValue, line );
+		assertColumnDataFound( ColumnName.G, graphHexValue, line );
+		assertColumnNotFound( ColumnName.I, line );
+		assertColumnNotFound( ColumnName.L, line );
+		assertColumnNotFound( ColumnName.D, line );
+		assertColumnNotFound( ColumnName.V, line );
+	}
+	
+	@Test
+	public void deleteObjectTest() throws TException {
+		Quad q = new Quad(graph, subject, predicate, object);
+		QueryPattern qp = new QueryPattern(connection,q);
+		String s = qp.getDeleteStatement("test", q);
+		String[] lines = s.split("\n");
+		assertEquals(6, lines.length);
+		assertEquals("BEGIN BATCH", lines[0]);
+
+		assertTrue("table missing", lines[1].contains("test.SPOG"));
+		verifyDeleteStatement( lines[1], objectHexValue );
+		
+		assertTrue("table missing", lines[2].contains("test.POGS"));
+		verifyDeleteStatement( lines[2], objectHexValue );
+
+		assertTrue("table missing", lines[3].contains("test.OSGP"));
+		verifyDeleteStatement( lines[3], objectHexValue );
+		
+		assertTrue("table missing", lines[4].contains("test.GSPO"));
+		verifyDeleteStatement( lines[4], objectHexValue );
+		
+		assertEquals("APPLY BATCH;", lines[5]);
+	}
+	
+	
+	
+	@Test
+	public void deleteNumTest() throws TException {
+		Quad q = new Quad(graph, subject, predicate, node42);
+		QueryPattern qp = new QueryPattern(connection,q);
+		String s = qp.getDeleteStatement("test", q);
+		String[] lines = s.split("\n");
+		assertEquals(6, lines.length);
+		assertEquals("BEGIN BATCH", lines[0]);
+
+		assertTrue("table missing", lines[1].contains("test.SPOG"));
+		verifyDeleteStatement( lines[1], node42HexValue );
+		
+		assertTrue("table missing", lines[2].contains("test.POGS"));
+		verifyDeleteStatement( lines[2], node42HexValue );
+
+		assertTrue("table missing", lines[3].contains("test.OSGP"));
+		verifyDeleteStatement( lines[3], node42HexValue );
+		
+		assertTrue("table missing", lines[4].contains("test.GSPO"));
+		verifyDeleteStatement( lines[4], node42HexValue );
+		
+		assertEquals("APPLY BATCH;", lines[5]);
+	}
+	
+	@Test
+	public void deleteLitTest() throws TException {
+		Quad q = new Quad(graph, subject, predicate, nodeLit);
+		QueryPattern qp = new QueryPattern(connection,q);
+		String s = qp.getDeleteStatement("test", q);
+		String[] lines = s.split("\n");
+		assertEquals(6, lines.length);
+		assertEquals("BEGIN BATCH", lines[0]);
+
+		assertTrue("table missing", lines[1].contains("test.SPOG"));
+		verifyDeleteStatement( lines[1], nodeLitHexValue );
+		
+		assertTrue("table missing", lines[2].contains("test.POGS"));
+		verifyDeleteStatement( lines[2], nodeLitHexValue );
+
+		assertTrue("table missing", lines[3].contains("test.OSGP"));
+		verifyDeleteStatement( lines[3], nodeLitHexValue );
+		
+		assertTrue("table missing", lines[4].contains("test.GSPO"));
+		verifyDeleteStatement( lines[4], nodeLitHexValue );
+		
+		assertEquals("APPLY BATCH;", lines[5]);
+	}
+	
+	@Test
+	public void deleteLitLangTest() throws TException {
+		Quad q = new Quad(graph, subject, predicate, nodeLitLang);
+		QueryPattern qp = new QueryPattern(connection,q);
+		String s = qp.getDeleteStatement("test", q);
+		String[] lines = s.split("\n");
+		assertEquals(6, lines.length);
+		assertEquals("BEGIN BATCH", lines[0]);
+
+		assertTrue("table missing", lines[1].contains("test.SPOG"));
+		verifyDeleteStatement( lines[1], nodeLitLangHexValue );
+		
+		assertTrue("table missing", lines[2].contains("test.POGS"));
+		verifyDeleteStatement( lines[2], nodeLitLangHexValue );
+
+		assertTrue("table missing", lines[3].contains("test.OSGP"));
+		verifyDeleteStatement( lines[3], nodeLitLangHexValue );
+		
+		assertTrue("table missing", lines[4].contains("test.GSPO"));
+		verifyDeleteStatement( lines[4], nodeLitLangHexValue );
+		
+		assertEquals("APPLY BATCH;", lines[5]);
 	}
 }

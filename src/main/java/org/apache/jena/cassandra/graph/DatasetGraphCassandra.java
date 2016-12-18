@@ -87,21 +87,21 @@ public class DatasetGraphCassandra extends DatasetGraphBase {
 
 	@Override
 	public boolean contains(Node g, Node s, Node p, Node o) {
-		QueryPattern pattern = new QueryPattern(g, Triple.createMatch(s, p, o));
-		return pattern.doContains(connection, keyspace);
+		QueryPattern pattern = new QueryPattern(connection, g, Triple.createMatch(s, p, o));
+		return pattern.doContains( keyspace);
 	}
 
 	@Override
 	public Iterator<Quad> find(Node g, Node s, Node p, Node o) {
-		QueryPattern pattern = new QueryPattern(g, Triple.createMatch(s, p, o));
-		return pattern.doFind(connection, keyspace);
+		QueryPattern pattern = new QueryPattern(connection, g, Triple.createMatch(s, p, o));
+		return pattern.doFind( keyspace);
 	}
 
 	@Override
 	public Iterator<Quad> findNG(Node g, Node s, Node p, Node o) {
-		QueryPattern pattern = new QueryPattern(g, Triple.createMatch(s, p, o));
+		QueryPattern pattern = new QueryPattern(connection, g, Triple.createMatch(s, p, o));
 		try {
-			return pattern.doFind(connection, keyspace, "graph <> " + pattern.valueOf(Quad.defaultGraphIRI));
+			return pattern.doFind( keyspace, "graph <> " + connection.valueOf(Quad.defaultGraphIRI));
 		} catch (TException e) {
 			LOG.error("Unable to execute findNG", e);
 			return NiceIterator.emptyIterator();
@@ -190,9 +190,9 @@ public class DatasetGraphCassandra extends DatasetGraphBase {
 
 	@Override
 	public long size() {
-		QueryPattern pattern = new QueryPattern(null, Triple.ANY);
+		QueryPattern pattern = new QueryPattern(connection, null, Triple.ANY);
 		try {
-			return pattern.getCount(connection, keyspace);
+			return pattern.getCount(keyspace);
 		} catch (TException e) {
 			LOG.error("Error building where clause", e);
 			return -1;
