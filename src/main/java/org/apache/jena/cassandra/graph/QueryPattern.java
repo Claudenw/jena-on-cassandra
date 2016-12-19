@@ -352,7 +352,7 @@ public class QueryPattern {
 			}
 		}
 
-		LOG.debug(query);
+		LOG.debug(query.text);
 		return query;
 	}
 
