@@ -68,8 +68,6 @@ public class CassandraConnection implements Closeable {
 	public static final TableName GSPO = new TableName("GSPO");
 	public static final TableName[] TABLES = { SPOG, PGOS, OSGP, GSPO };	
 
-	private static final Collection<String> NEEDS_FILTER = Arrays.asList("_p_g", "__og");
-
 	/*
 	 * The mapping of table ID to name.
 	 */
@@ -248,17 +246,6 @@ public class CassandraConnection implements Closeable {
 			throw new IllegalStateException(String.format("No table for %s", tableId));
 		}
 		return tblName;
-	}
-
-	/**
-	 * Return true if the specified table requries a filter.
-	 * 
-	 * @param tableId
-	 *            The table Id.
-	 * @return True if the table identified by the id needs a filter.
-	 */
-	public static boolean needsFilter(String tableId) {
-		return NEEDS_FILTER.contains(tableId);
 	}
 	
 	public ResultSet executeQuery( String query )

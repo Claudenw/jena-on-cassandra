@@ -19,7 +19,6 @@
 
 package org.apache.jena.cassandra.graph;
 
-import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -31,12 +30,10 @@ import java.util.concurrent.ForkJoinPool;
 import java.util.function.Function;
 import java.util.function.Predicate;
 
-import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.jena.datatypes.RDFDatatype;
 import org.apache.jena.datatypes.TypeMapper;
-import org.apache.jena.datatypes.xsd.impl.XSDBaseNumericType;
 import org.apache.jena.graph.Node;
 import org.apache.jena.graph.NodeFactory;
 import org.apache.jena.graph.Triple;
@@ -389,16 +386,6 @@ public class QueryPattern {
 		return getWhereClause(getTableName());
 	}
 
-	// /**
-	// * Returns true if the resulting query needs a filter to return the proper
-	// * values.
-	// *
-	// * @return true if the query needs a filter.
-	// */
-	// public boolean needsFilter() {
-	// return CassandraConnection.needsFilter(getId());
-	// }
-
 	/**
 	 * Returns true if the table query needs a filter.
 	 * 
@@ -723,11 +710,20 @@ public class QueryPattern {
 
 	}
 
+	/**
+	 * This is a query object it contains the where clause and tracks if the 
+	 * query needs to be filtered.  
+	 *
+	 */
 	public class Query {
 		StringBuilder text;
 		boolean needsFilter = false;
 		private QueryInfo.WhereClause whereClause;
 
+		/**
+		 * Set the where clause for this query.  Adds where text to the query text.
+		 * @param whereClause The where clause to use
+		 */
 		public void setWhere(QueryInfo.WhereClause whereClause) {
 			this.whereClause = whereClause;
 			text.append(whereClause.text);
@@ -735,6 +731,14 @@ public class QueryPattern {
 		}
 	}
 
+	/**
+	 * Class that contains all the information for a query. Once created this class
+	 * has all the possible data for a query.  Methods using this class are expected
+	 * to remove items from the values map, add columns to the extraValue filter, 
+	 * add extra equality checks to the extraWhere method or add text to the suffix 
+	 * before calling getWhereClause() to generate the where clause for the query.
+	 *
+	 */
 	public class QueryInfo {
 		/**
 		 * The quad we used to generate the table name.
@@ -766,11 +770,6 @@ public class QueryPattern {
 			values = getQueryValues(quad);
 			tableQuad = quad;
 			tableName = CassandraConnection.getTable(CassandraConnection.getId(tableQuad));
-		}
-
-		public class WhereClause {
-			StringBuilder text;
-			boolean needFilter = false;
 		}
 
 		/**
@@ -903,39 +902,18 @@ public class QueryPattern {
 		public boolean objectIsLiteral() {
 			return values.containsKey(ColumnName.V);
 		}
-
-		// /**
-		// * Create a map of columns to extra values for the specified object
-		// node.
-		// * The resulting map will only have the column names for extra values
-		// needed
-		// * for the object node type.
-		// *
-		// * @param object
-		// * The object node to process
-		// * @return A map of extra values indexed by columnName. May be empty
-		// but not
-		// * null.
-		// */
-		// private Map<ColumnName, Object> getObjectExtraValues(Node object) {
-		// // use treemap to ensure column names are always returned in the same
-		// // order.
-		// Map<ColumnName, Object> retval = new TreeMap<ColumnName, Object>();
-		//
-		// if (object != null && object.isLiteral()) {
-		// if (object.getLiteralDatatype() instanceof XSDBaseNumericType) {
-		// retval.put(ColumnName.I, new
-		// BigDecimal(object.getLiteral().getLexicalForm()));
-		// }
-		// retval.put(ColumnName.D, String.format("'%s'",
-		// object.getLiteralDatatypeURI()));
-		// String lang = object.getLiteralLanguage();
-		// if (!StringUtils.isBlank(lang)) {
-		// retval.put(ColumnName.L, String.format("'%s'", lang.toLowerCase()));
-		// }
-		// }
-		// return retval;
-		// }
+		
+		/**
+		 * 
+		 * A where clause for a query.  This contains the where text and a flag
+		 * to indicate that a filter is required as the where clause is not specific
+		 * enough.
+		 *
+		 */
+		public class WhereClause {
+			StringBuilder text;
+			boolean needFilter = false;
+		}
 
 	}
 }
