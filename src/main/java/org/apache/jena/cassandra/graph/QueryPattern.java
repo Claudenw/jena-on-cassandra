@@ -197,60 +197,11 @@ public class QueryPattern {
 	public Map<ColumnName, Object> getQueryValues(Quad quad) {
 
 		Map<ColumnName, Object> retval = new TreeMap<ColumnName, Object>();
-
-		Node n = null;
 		for (ColumnName colName : ColumnName.values()) {
-			try {
-				switch (colName) {
-				case S:
-				case P:
-				case G:
-				case O:
-					n = colName.getMatch(quad);
-					if (n != null) {
-						retval.put(colName, connection.valueOf(n));
-					}
-					break;
-				case V:
-					n = ColumnName.O.getMatch(quad);
-					if (n != null) {
-						if (n.isLiteral()) {
-							retval.put(colName, n.getLiteralLexicalForm());
-						}
-					}
-					break;
-				case I:
-					n = ColumnName.O.getMatch(quad);
-					if (n != null) {
-						if (n.isLiteral() && n.getLiteralDatatype() instanceof XSDBaseNumericType) {							
-							retval.put(colName, new BigDecimal(n.getLiteral().getLexicalForm()));
-						}
-					}
-					break;
-				case L:
-					n = ColumnName.O.getMatch(quad);
-					if (n != null) {
-						if (n.isLiteral() && StringUtils.isNotEmpty(n.getLiteralLanguage())) {
-							retval.put(colName, n.getLiteralLanguage());
-						}
-					}
-					break;
-				case D:
-					n = ColumnName.O.getMatch(quad);
-					if (n != null) {
-						if (n.isLiteral()) {
-							retval.put(colName, n.getLiteralDatatypeURI());
-						}
-					}
-					break;
-				default:
-					LOG.warn("Unhandled column type: " + colName);
-				}
-
-			} catch (TException e) {
-				LOG.error(String.format("Error encoding %s: %s", colName, n), e);
+			Object value = colName.getValue(quad);
+			if (value != null) {
+				retval.put(colName, value);
 			}
-
 		}
 		return retval;
 	}
@@ -368,11 +319,10 @@ public class QueryPattern {
 			}
 			return iter;
 		} catch (TException e) {
-			LOG.error("Bad query: "+e.getMessage(), e);
+			LOG.error("Bad query: " + e.getMessage(), e);
 			return NiceIterator.emptyIterator();
-		} catch (InvalidQueryException e)
-		{
-			LOG.error("Bad query: "+e.getMessage(), e);
+		} catch (InvalidQueryException e) {
+			LOG.error("Bad query: " + e.getMessage(), e);
 			return NiceIterator.emptyIterator();
 		}
 	}
@@ -392,7 +342,7 @@ public class QueryPattern {
 				String.format("SELECT %s FROM %s.%s", SELECT_COLUMNS, keyspace, queryInfo.tableName));
 
 		QueryInfo.WhereClause whereClause = queryInfo.getWhereClause();
-		
+
 		query.setWhere(whereClause);
 
 		if (queryInfo.suffix != null) {
@@ -439,15 +389,15 @@ public class QueryPattern {
 		return getWhereClause(getTableName());
 	}
 
-//	/**
-//	 * Returns true if the resulting query needs a filter to return the proper
-//	 * values.
-//	 * 
-//	 * @return true if the query needs a filter.
-//	 */
-//	public boolean needsFilter() {
-//		return CassandraConnection.needsFilter(getId());
-//	}
+	// /**
+	// * Returns true if the resulting query needs a filter to return the proper
+	// * values.
+	// *
+	// * @return true if the query needs a filter.
+	// */
+	// public boolean needsFilter() {
+	// return CassandraConnection.needsFilter(getId());
+	// }
 
 	/**
 	 * Returns true if the table query needs a filter.
@@ -480,7 +430,7 @@ public class QueryPattern {
 		StringBuilder sb = new StringBuilder("BEGIN BATCH").append(System.lineSeparator());
 		for (TableName tableName : CassandraConnection.getTableList()) {
 			queryInfo.tableName = tableName;
-			String whereClause = queryInfo.getWhereClause().toString();
+			String whereClause = queryInfo.getWhereClause().text.toString();
 			String cmd = String.format("DELETE FROM %s.%s %s;%n", keyspace, queryInfo.tableName.getName(), whereClause);
 			sb.append(cmd);
 		}
@@ -549,23 +499,20 @@ public class QueryPattern {
 	public long getCount(String keyspace) throws TException {
 		TableName tableName = getTableName();
 		QueryInfo.WhereClause whereClause = getWhereClause(tableName);
-		if (whereClause.needFilter)
-		{
-			ExtendedIterator<Quad> iter = doFind( keyspace );
+		if (whereClause.needFilter) {
+			ExtendedIterator<Quad> iter = doFind(keyspace);
 			long count = 0;
-			while (iter.hasNext())
-			{
+			while (iter.hasNext()) {
 				count++;
 				iter.next();
 			}
 			return count;
-		}
-		else
-		{
-			String query = String.format("SELECT count(%s) FROM %s.%s %s", tableName.getPartitionKey(), keyspace, tableName, whereClause.text);
+		} else {
+			String query = String.format("SELECT count(%s) FROM %s.%s %s", tableName.getPartitionKey(), keyspace,
+					tableName, whereClause.text);
 			ResultSet rs = connection.executeQuery(query);
 			return rs.one().getLong(0);
-		}		
+		}
 	}
 
 	/*
@@ -599,7 +546,7 @@ public class QueryPattern {
 				if (!first) {
 					sb.append(", ");
 				}
-				sb.append(colName.getInsertValue(queryInfo.values.get(colName)));
+				sb.append(colName.getInsertValue(connection, queryInfo.values.get(colName)));
 				first = false;
 			}
 			sb.append(");").append(System.lineSeparator());
@@ -775,17 +722,16 @@ public class QueryPattern {
 		}
 
 	}
-	
+
 	public class Query {
 		StringBuilder text;
 		boolean needsFilter = false;
 		private QueryInfo.WhereClause whereClause;
-		
-		public void setWhere( QueryInfo.WhereClause whereClause )
-		{
+
+		public void setWhere(QueryInfo.WhereClause whereClause) {
 			this.whereClause = whereClause;
-			text.append( whereClause.text);
-			needsFilter= whereClause.needFilter;
+			text.append(whereClause.text);
+			needsFilter = whereClause.needFilter;
 		}
 	}
 
@@ -826,7 +772,7 @@ public class QueryPattern {
 			StringBuilder text;
 			boolean needFilter = false;
 		}
-		
+
 		/**
 		 * Builds the where clause for a query based on the table name, the quad
 		 * we are looking for and any extra values.
@@ -835,23 +781,26 @@ public class QueryPattern {
 		 * @throws TException
 		 *             on encoding error.
 		 */
-		public /*StringBuilder*/ WhereClause getWhereClause() throws TException {
-/*
- * Cassandra queries have some particular requirements:
- * 
- * 1. the primary key must be specified.  If it is not specified then token( col ) > Long.MIN_VALUE will 
- * return all the values
- * 
- * 2. the rest of the key columns do not have to be specified except that if a key segment has a value
- * all earlier segments must also have values.
- * 
- * To handle the case where a previous key segment is missing we will stop at the first missing segment.
- * If there are any further specified segments we will use a result filter to properly filter them
- * 
- */
-	
+		public /* StringBuilder */ WhereClause getWhereClause() throws TException {
+			/*
+			 * Cassandra queries have some particular requirements:
+			 * 
+			 * 1. the primary key must be specified. If it is not specified then
+			 * token( col ) > Long.MIN_VALUE will return all the values
+			 * 
+			 * 2. the rest of the key columns do not have to be specified except
+			 * that if a key segment has a value all earlier segments must also
+			 * have values.
+			 * 
+			 * To handle the case where a previous key segment is missing we
+			 * will stop at the first missing segment. If there are any further
+			 * specified segments we will use a result filter to properly filter
+			 * them
+			 * 
+			 */
+
 			WhereClause retval = new WhereClause();
-			
+
 			// get the key values for the primary key
 			if (values == null) {
 				values = getQueryValues(tableQuad);
@@ -862,73 +811,65 @@ public class QueryPattern {
 					values.remove(c);
 				}
 			}
-			
-			
-			/* Always remove the object value if any non primary data are available
-			 * as we will us the other columns to find it in the query.
-			 * Delete should remove all non primary data.
+
+			/*
+			 * Always remove the object value if any non primary data are
+			 * available as we will us the other columns to find it in the
+			 * query. Delete should remove all non primary data.
 			 */
-			if (tableQuad.getObject().isLiteral() && hasNonPrimaryData())
-			{
+			if (tableQuad.getObject().isLiteral() && hasNonPrimaryData()) {
 				values.remove(ColumnName.O);
 			}
 
 			List<ColumnName> primaryKey = tableName.getPrimaryKeyColumns();
 			/*
-			 * Find the last key segment with a value and determine if any of the segments before 
-			 * that is a null.  
+			 * Find the last key segment with a value and determine if any of
+			 * the segments before that is a null.
 			 */
 			int lastCol = -1;
 			boolean skippedCol = false;
-			
-			for (int i=0;i<primaryKey.size();i++) {
+
+			for (int i = 0; i < primaryKey.size(); i++) {
 				ColumnName colName = primaryKey.get(i);
-				if (values.containsKey(colName))
-				{
-					if (skippedCol)
-					{
+				if (values.containsKey(colName)) {
+					if (skippedCol) {
 						retval.needFilter = true;
-					}
-					else
-					{
+					} else {
 						lastCol = i;
 					}
 				} else {
 					skippedCol = true;
 				}
 			}
-		
+
 			retval.text = new StringBuilder(" WHERE ");
 			if (lastCol == -1) {
 				// no primary key columns have a value so start with the scan
 				// value
-				retval.text.append(tableName.getPartitionKey().getScanValue(null));		
-			}
-			else if (lastCol == 0 ){
+				retval.text.append(tableName.getPartitionKey().getScanValue(null));
+			} else if (lastCol == 0) {
 				ColumnName columnName = primaryKey.get(0);
 				Object value = values.get(columnName);
 				if (value == null) {
 					retval.text.append(columnName.getScanValue(value));
 				} else {
-					retval.text.append(columnName.getEqualityValue(value));
+					retval.text.append(columnName.getEqualityValue(connection, value));
 				}
 			} else {
-				/**
-				 * If we do scans then we have to do scans on all columns
-				 */				
 				/*
 				 * for each of the columns in the primary key put in the value
-				 * or the scan statement.
 				 */
 				for (int i = 0; i <= lastCol; i++) {
+					ColumnName columnName = primaryKey.get(i);
+					Object value = values.get(columnName);
+					if (value == null) {
+						break;
+					}
 					if (i > 0) {
 						retval.text.append(" AND ");
 					}
+					retval.text.append(columnName.getEqualityValue(connection, value));
 
-					ColumnName columnName = primaryKey.get(i);
-					Object value = values.get(columnName);
-						retval.text.append(columnName.getEqualityValue(value));
-				
 				}
 			}
 
@@ -937,14 +878,14 @@ public class QueryPattern {
 
 				Object value = values.get(colName);
 				if (value != null) {
-					retval.text.append(" AND ").append(colName.getEqualityValue(value));
+					retval.text.append(" AND ").append(colName.getEqualityValue(connection, value));
 				}
 
 			}
 
 			/* if there is any extra key put that value in */
 			if (extraWhere != null) {
-				retval.text.append( " AND " ).append(extraWhere);
+				retval.text.append(" AND ").append(extraWhere);
 			}
 			return retval;
 		}
@@ -962,7 +903,6 @@ public class QueryPattern {
 		public boolean objectIsLiteral() {
 			return values.containsKey(ColumnName.V);
 		}
-		
 
 		// /**
 		// * Create a map of columns to extra values for the specified object

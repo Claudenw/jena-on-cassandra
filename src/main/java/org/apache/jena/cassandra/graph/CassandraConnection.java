@@ -298,15 +298,15 @@ public class CassandraConnection implements Closeable {
 		return Bytes.toHexString(bary);
 	}
 
-	/**
-	 * get the hex value for a string.
-	 * 
-	 * @param strValue
-	 *            the string to convert
-	 * @return The hex value string representing the input string.
-	 */
-	public String hexOf(String strValue) {
-		return plainText?strValue:Bytes.toHexString(strValue.getBytes());
-	}
+//	/**
+//	 * get the hex value for a string.
+//	 * 
+//	 * @param strValue
+//	 *            the string to convert
+//	 * @return The hex value string representing the input string.
+//	 */
+//	public String hexOf(String strValue) {
+//		return plainText?strValue:Bytes.toHexString(strValue.getBytes());
+//	}
 
 }

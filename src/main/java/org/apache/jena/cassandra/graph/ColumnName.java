@@ -18,21 +18,36 @@
 
 package org.apache.jena.cassandra.graph;
 
+import java.math.BigDecimal;
+
+import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+import org.apache.jena.datatypes.xsd.impl.XSDBaseNumericType;
 import org.apache.jena.graph.Node;
 import org.apache.jena.sparql.core.Quad;
+import org.apache.thrift.TException;
 
 /**
  * An enumeration that handles columns in a table.
  *
  */
 public enum ColumnName {
-	S("subject", "blob", 0), P("predicate", "blob", 1), O("object", "blob", 2), G("graph", "blob" ,3), 
-	L("obj_lang", "text", 4), D("obj_dtype", "text", 5), I( "obj_int", "varint", -1), V( "obj_value", "text", 6);
+	S("subject", ColumnType.blob, 0), P("predicate", ColumnType.blob, 1), 
+	O("object", ColumnType.blob, 2), G("graph", ColumnType.blob ,3), 
+	L("obj_lang", ColumnType.text, 4), D("obj_dtype", ColumnType.text, 5), 
+	I( "obj_int", ColumnType.varint, -1), V( "obj_value", ColumnType.text, 6);
 
+	public enum ColumnType {
+		blob, text, varint
+	}
+	
+	private static final Log LOG = LogFactory.getLog(ColumnName.class);
+	
 	/* the long name of the column */
 	private String name;
 	/* the cassandra data type of the column */
-	private String datatype;
+	private ColumnType datatype;
 	/* the query position in the standard query */
 	private int queryPos;
 
@@ -42,7 +57,7 @@ public enum ColumnName {
 	 * @param name
 	 *            The long name of the column
 	 */
-	ColumnName(String name, String datatype, int queryPos) {
+	ColumnName(String name, ColumnType datatype, int queryPos) {
 		this.name = name;
 		this.datatype = datatype;
 		this.queryPos = queryPos;
@@ -123,11 +138,8 @@ public enum ColumnName {
 	 */
 	public String getScanValue( Object value )
 	{
-		switch (this) {
-		case S:
-		case P:
-		case O:
-		case G:
+		switch (this.datatype) {
+		case blob:
 		default:
 			if (value == null)
 			{
@@ -138,54 +150,43 @@ public enum ColumnName {
 				return String.format( "token(%s) = token(%s)", this, value);
 			}
 			
-		case I:
+		case varint:
 			return String.format( "%s >= %s", this, Integer.MIN_VALUE);
-		case L:
-		case D:
-		case V:
+		case text:
 			return String.format( "%s >= %s", this, "''");		
 		}
 	}
 	
-	public String getEqualityValue( Object value )
+	public String getEqualityValue( CassandraConnection connection, Object value )
 	{
 		if (value == null)
 		{
 			throw new IllegalArgumentException( "value may not be null");
 		}
-		switch (this) {
-		case S:
-		case P:
-		case O:
-		case G:
-		case I:
-		default:
-			return String.format( "%s=%s", this, value);
-		case L:
-		case D:
-		case V:
-			return String.format( "%s='%s'", this, value);		
-		}
+		return String.format( "%s=%s", this, getInsertValue( connection, value ));
 	}
+	
+	
 
-	public String getInsertValue( Object value )
+	public String getInsertValue( CassandraConnection connection, Object value )
 	{
 		if (value == null)
 		{
 			throw new IllegalArgumentException( "value may not be null");
 		}
-		switch (this) {
-		case S:
-		case P:
-		case O:
-		case G:
-		case I:
+		switch (this.datatype) {
+		case blob:
+		case varint:
 		default:
-			return String.format( "%s", value);
-		case L:
-		case D:
-		case V:
-			return String.format( "'%s'", value);		
+			try {
+				return
+				 (value instanceof Node) ? connection.valueOf( (Node)value ) :
+					 value.toString();
+			} catch (TException e) {
+				throw new IllegalStateException(String.format("Unable to encode %s",value), e );
+			}
+		case text:
+			return String.format( "'%s'", value.toString().replaceAll("'", "''"));		
 		}
 	}
 	/**
@@ -195,4 +196,52 @@ public enum ColumnName {
 	public String getCreateText() {
 		return String.format( "%s %s", name, datatype);
 	}
+	
+	public Object getValue(Quad quad)
+	{
+		Node n;
+	switch (this) {
+	case S:
+	case P:
+	case G:
+	case O:
+		return getMatch(quad);
+	case V:
+		n = ColumnName.O.getMatch(quad);
+		if (n != null) {
+			if (n.isLiteral()) {
+				return n.getLiteralLexicalForm();
+			}
+		}
+		break;
+	case I:
+		n = ColumnName.O.getMatch(quad);
+		if (n != null) {
+			if (n.isLiteral() && n.getLiteralDatatype() instanceof XSDBaseNumericType) {							
+				return new BigDecimal(n.getLiteral().getLexicalForm());
+			}
+		}
+		break;
+	case L:
+		n = ColumnName.O.getMatch(quad);
+		if (n != null) {
+			if (n.isLiteral() && StringUtils.isNotEmpty(n.getLiteralLanguage())) {
+				return n.getLiteralLanguage();
+			}
+		}
+		break;
+	case D:
+		n = ColumnName.O.getMatch(quad);
+		if (n != null) {
+			if (n.isLiteral()) {
+				return n.getLiteralDatatypeURI();
+			}
+		}
+		break;
+	default:
+		LOG.warn("Unhandled column type: " + this);
+	}
+	return null;
+	}
+
 }
