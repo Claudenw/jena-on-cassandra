@@ -121,6 +121,12 @@ public class GraphCassandra extends GraphBase {
 		if (Quad.isDefaultGraph(graph)) {
 			throw new AddDeniedException("Can not delete from default graph named " + graph);
 		}
+		// do not delete any triple with a wild card.
+		if (t.getMatchSubject() == null || t.getMatchPredicate() == null ||
+				t.getMatchObject() == null)
+		{
+			return;
+		}
 
 		QueryPattern pattern = new QueryPattern(connection, graph, t);
 		pattern.doDelete(keyspace);
