@@ -132,6 +132,17 @@ public class GraphCassandra extends GraphBase {
 		pattern.doDelete(keyspace);
 
 	}
+	
+	@Override
+	public void remove(Node s, Node p, Node o)
+	{
+		if (Quad.isDefaultGraph(graph)) {
+			throw new AddDeniedException("Can not delete from default graph named " + graph);
+		}
+		QueryPattern pattern = new QueryPattern(connection, graph, Triple.createMatch(s, p, o));
+		pattern.doDelete(keyspace);
+		getEventManager().notifyEvent(this, GraphEvents.remove(s, p, o) ) ;
+	}
 
 	@Override
 	public void clear() {
