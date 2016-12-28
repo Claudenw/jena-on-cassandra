@@ -436,7 +436,7 @@ public class QueryPattern {
 
 		ExtendedIterator<Quad> iter = doFind(keyspace);
 		ConcurrentHashMap<Runnable, ResultSetFuture> map = new ConcurrentHashMap<>();
-		ForkJoinPool executor = new ForkJoinPool(4);
+		ForkJoinPool executor = new ForkJoinPool(1);
 
 		while (iter.hasNext()) {
 

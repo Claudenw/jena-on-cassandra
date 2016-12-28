@@ -18,20 +18,30 @@
 
 package org.apache.jena.cassandra.graph;
 
+import static org.apache.jena.testing_framework.GraphHelper.graphWith;
+import static org.apache.jena.testing_framework.GraphHelper.triple;
+import static org.apache.jena.testing_framework.GraphHelper.txnBegin;
+import static org.apache.jena.testing_framework.GraphHelper.txnCommit;
+import static org.junit.Assert.assertTrue;
+
 import java.io.File;
 import java.io.IOException;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.jena.graph.Graph;
+import org.apache.jena.graph.GraphEvents;
 import org.apache.jena.graph.NodeFactory;
 import org.apache.jena.graph.Triple;
 import org.apache.jena.testing_framework.AbstractGraphProducer;
+import org.apache.jena.testing_framework.GraphHelper;
 import org.apache.thrift.transport.TTransportException;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
+import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.xenei.junit.contract.ContractImpl;
 import org.xenei.junit.contract.ContractSuite;
+import org.xenei.junit.contract.ContractTest;
 import org.xenei.junit.contract.IProducer;
 import org.xenei.junit.contract.Contract.Inject;
 
@@ -110,7 +120,5 @@ public class TestGraphCassandra {
 		}
 
 	};
-
-	
 
 }

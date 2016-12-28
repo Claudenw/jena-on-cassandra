@@ -146,7 +146,8 @@ public class GraphCassandra extends GraphBase {
 
 	@Override
 	public void clear() {
-		performDelete(Triple.ANY);
+		QueryPattern pattern = new QueryPattern( connection, graph, Triple.ANY );
+		pattern.doDelete( keyspace );
 		getEventManager().notifyEvent(this, GraphEvents.removeAll);
 	}
 

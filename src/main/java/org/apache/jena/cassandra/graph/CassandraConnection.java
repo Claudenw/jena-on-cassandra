@@ -23,6 +23,8 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ForkJoinPool;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -30,11 +32,13 @@ import org.apache.jena.graph.Node;
 import org.apache.jena.riot.thrift.ThriftConvert;
 import org.apache.jena.riot.thrift.wire.RDF_Term;
 import org.apache.jena.sparql.core.Quad;
+import org.apache.jena.util.iterator.ExtendedIterator;
 import org.apache.thrift.TException;
 import org.apache.thrift.TSerializer;
 
 import com.datastax.driver.core.Cluster;
 import com.datastax.driver.core.ResultSet;
+import com.datastax.driver.core.ResultSetFuture;
 import com.datastax.driver.core.Session;
 import com.datastax.driver.core.exceptions.QueryValidationException;
 import com.datastax.driver.core.utils.Bytes;
@@ -231,6 +235,19 @@ public class CassandraConnection implements Closeable {
 				getSession().execute(stmt);
 			}
 		}
+	}
+	
+	/**
+	 * Truncate all the tables in the keyspace.
+	 * @param keyspace The keyspace to delete from.
+	 */
+	public void truncateTables(String keyspace) {
+		
+		StringBuilder sb = new StringBuilder("BEGIN BATCH").append(System.lineSeparator());
+		for (TableName tableName : CassandraConnection.getTableList()) {
+			sb.append( String.format("TRUNCATE %s.%s ;%n", keyspace, tableName.getName()));
+		}
+		session.execute(sb.append("APPLY BATCH;").toString());
 	}
 
 	/**
