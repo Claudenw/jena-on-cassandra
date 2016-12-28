@@ -18,30 +18,19 @@
 
 package org.apache.jena.cassandra.graph;
 
-import static org.apache.jena.testing_framework.GraphHelper.graphWith;
-import static org.apache.jena.testing_framework.GraphHelper.triple;
-import static org.apache.jena.testing_framework.GraphHelper.txnBegin;
-import static org.apache.jena.testing_framework.GraphHelper.txnCommit;
-import static org.junit.Assert.assertTrue;
-
-import java.io.File;
 import java.io.IOException;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.jena.graph.Graph;
-import org.apache.jena.graph.GraphEvents;
 import org.apache.jena.graph.NodeFactory;
 import org.apache.jena.graph.Triple;
 import org.apache.jena.testing_framework.AbstractGraphProducer;
-import org.apache.jena.testing_framework.GraphHelper;
 import org.apache.thrift.transport.TTransportException;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
-import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.xenei.junit.contract.ContractImpl;
 import org.xenei.junit.contract.ContractSuite;
-import org.xenei.junit.contract.ContractTest;
 import org.xenei.junit.contract.IProducer;
 import org.xenei.junit.contract.Contract.Inject;
 
@@ -49,10 +38,8 @@ import org.xenei.junit.contract.Contract.Inject;
 @ContractImpl(GraphCassandra.class)
 public class TestGraphCassandra {
 
-
 	private CassandraConnection connection;
 	private static final String KEYSPACE = "test";
-	private static File tempDir;
 	private static CassandraSetup cassandra;
 
 	/**
@@ -67,46 +54,48 @@ public class TestGraphCassandra {
 		cassandra = new CassandraSetup();
 	}
 
-
 	@AfterClass
 	public static void after() {
-		//cassandra.shutdown();
+		// cassandra.shutdown();
 	}
 
 	@Before
-	public void setupTestGraphCassandra() throws ConfigurationException, TTransportException, IOException, InterruptedException {
+	public void setupTestGraphCassandra()
+			throws ConfigurationException, TTransportException, IOException, InterruptedException {
 		connection = new CassandraConnection("localhost", cassandra.getSslStoragePort());
-		connection.getSession().execute(String.format("CREATE KEYSPACE IF NOT EXISTS %s WITH REPLICATION = { 'class' : 'SimpleStrategy', 'replication_factor' : 1 }", KEYSPACE));
+		connection.getSession()
+				.execute(String.format(
+						"CREATE KEYSPACE IF NOT EXISTS %s WITH REPLICATION = { 'class' : 'SimpleStrategy', 'replication_factor' : 1 }",
+						KEYSPACE));
 		connection.deleteTables(KEYSPACE);
 		connection.createTables(KEYSPACE);
 	}
-	
+
 	@Inject
 	public IProducer<GraphCassandra> getGraphProducer() {
 		return graphProducer;
 	}
 
-
 	protected IProducer<GraphCassandra> graphProducer = new AbstractGraphProducer<GraphCassandra>() {
 
 		@Override
 		protected void afterClose(Graph g) {
-			((GraphCassandra)g).performDelete( Triple.ANY );
+			((GraphCassandra) g).performDelete(Triple.ANY);
 		}
 
 		int graphCount = 0;
-		
+
 		@Override
-		protected GraphCassandra createNewGraph()  {
-			if (connection == null)
-			{
+		protected GraphCassandra createNewGraph() {
+			if (connection == null) {
 				try {
 					setupTestGraphCassandra();
 				} catch (ConfigurationException | TTransportException | IOException | InterruptedException e) {
-					throw new RuntimeException( e );
+					throw new RuntimeException(e);
 				}
 			}
-			return new GraphCassandra(NodeFactory.createURI("http://example.com/graph"+graphCount++), KEYSPACE, connection);
+			return new GraphCassandra(NodeFactory.createURI("http://example.com/graph" + graphCount++), KEYSPACE,
+					connection);
 		}
 
 		@Override

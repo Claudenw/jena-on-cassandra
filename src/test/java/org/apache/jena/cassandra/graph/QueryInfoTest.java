@@ -53,8 +53,7 @@ public class QueryInfoTest {
 
 	private static Node node42 = NodeFactory.createLiteral(LiteralLabelFactory.createTypedLiteral(42));
 	private static String node42HexValue = "0x0c00030b00010000000234320b000300000024687474703a2f2f7777772e77332e6f72672f323030312f584d4c536368656d6123696e740000";
-	private static String node42DType = "'http://www.w3.org/2001/XMLSchema#int'";
-	private static String node42LitValue = "'42'";
+	private static String node42LitValue = "42";
 
 	private static String nodeLitValue = "'String Literal'";
 	private static Node nodeLit = NodeFactory.createLiteral("String Literal");
@@ -149,7 +148,7 @@ public class QueryInfoTest {
 		assertColumnDataFound(ColumnName.S, subjectHexValue, s);
 		assertColumnDataFound(ColumnName.P, predicateHexValue, s);
 		assertColumnNotFound(ColumnName.O, s);
-		assertColumnDataFound(ColumnName.I, "42", s);
+		assertColumnDataFound(ColumnName.I, node42LitValue, s);
 		assertColumnNotFound(ColumnName.D, s);
 		assertColumnNotFound(ColumnName.V, s);
 		assertColumnNotFound(ColumnName.L, s);
@@ -193,7 +192,7 @@ public class QueryInfoTest {
 		assertColumnDataFound(ColumnName.S, subjectHexValue, s);
 		assertColumnNotFound(ColumnName.P, s);
 		assertColumnNotFound(ColumnName.O, s);
-		assertColumnDataFound(ColumnName.I, "42", s);
+		assertColumnDataFound(ColumnName.I, node42LitValue, s);
 		assertColumnNotFound(ColumnName.D, s);
 		assertColumnNotFound(ColumnName.V, s);
 		assertColumnNotFound(ColumnName.L, s);
@@ -215,7 +214,7 @@ public class QueryInfoTest {
 		assertColumnDataFound(ColumnName.G, graphHexValue, s);
 		assertColumnNotFound(ColumnName.O, s);
 		assertColumnNotFound(ColumnName.S, s);
-		assertColumnDataFound(ColumnName.I, "42", s);
+		assertColumnDataFound(ColumnName.I, node42LitValue, s);
 		assertColumnNotFound(ColumnName.D, s);
 		assertColumnNotFound(ColumnName.V, s);
 		assertColumnNotFound(ColumnName.L, s);
@@ -237,7 +236,7 @@ public class QueryInfoTest {
 		assertColumnDataFound(ColumnName.P, predicateHexValue, s);
 		assertColumnNotFound(ColumnName.O, s);
 		assertColumnNotFound(ColumnName.G, s);
-		assertColumnDataFound(ColumnName.I, "42", s);
+		assertColumnDataFound(ColumnName.I, node42LitValue, s);
 		assertColumnNotFound(ColumnName.D, s);
 		assertColumnNotFound(ColumnName.V, s);
 		assertColumnNotFound(ColumnName.L, s);
@@ -261,7 +260,7 @@ public class QueryInfoTest {
 		assertColumnNotFound(ColumnName.S, s);
 		assertColumnNotFound(ColumnName.P, s);
 		assertColumnNotFound(ColumnName.O, s);
-		assertColumnDataFound(ColumnName.I, "42", s);
+		assertColumnDataFound(ColumnName.I, node42LitValue, s);
 		assertColumnNotFound(ColumnName.D, s);
 		assertColumnNotFound(ColumnName.V, s);
 		assertColumnNotFound(ColumnName.L, s);
@@ -284,7 +283,7 @@ public class QueryInfoTest {
 		assertColumnNotFound(ColumnName.G, s);
 		assertColumnNotFound(ColumnName.P, s);
 		assertColumnNotFound(ColumnName.O, s);
-		assertColumnDataFound(ColumnName.I, "42", s);
+		assertColumnDataFound(ColumnName.I, node42LitValue, s);
 		assertColumnNotFound(ColumnName.D, s);
 		assertColumnNotFound(ColumnName.V, s);
 		assertColumnNotFound(ColumnName.L, s);
@@ -306,7 +305,7 @@ public class QueryInfoTest {
 		assertColumnNotFound(ColumnName.O, s);
 		assertColumnNotFound(ColumnName.G, s);
 		assertColumnNotFound(ColumnName.S, s);
-		assertColumnDataFound(ColumnName.I, "42", s);
+		assertColumnDataFound(ColumnName.I, node42LitValue, s);
 		assertColumnNotFound(ColumnName.D, s);
 		assertColumnNotFound(ColumnName.V, s);
 		assertColumnNotFound(ColumnName.L, s);
@@ -328,7 +327,7 @@ public class QueryInfoTest {
 		assertColumnNotFound(ColumnName.S, s);
 		assertColumnNotFound(ColumnName.P, s);
 		assertColumnNotFound(ColumnName.O, s);
-		assertColumnDataFound(ColumnName.I, "42", s);
+		assertColumnDataFound(ColumnName.I, node42LitValue, s);
 		assertColumnNotFound(ColumnName.D, s);
 		assertColumnNotFound(ColumnName.V, s);
 		assertColumnNotFound(ColumnName.L, s);
@@ -1005,78 +1004,5 @@ public class QueryInfoTest {
 		}
 
 	}
-	//
-	//
-	//
-	// @Test
-	// public void deleteNumTest() throws TException {
-	// Quad q = new Quad(graph, subject, predicate, node42);
-	// QueryPattern qp = new QueryPattern(connection,q);
-	// String s = qp.getDeleteStatement("test", q);
-	// String[] lines = s.split("\n");
-	// assertEquals(6, lines.length);
-	// assertEquals("BEGIN BATCH", lines[0]);
-	//
-	//
-	// verifyDeleteStatement( lines[1], node42HexValue );
-	//
-	//
-	// verifyDeleteStatement( lines[2], node42HexValue );
-	//
-	//
-	// verifyDeleteStatement( lines[3], node42HexValue );
-	//
-	//
-	// verifyDeleteStatement( lines[4], node42HexValue );
-	//
-	// assertEquals("APPLY BATCH;", lines[5]);
-	// }
-	//
-	// @Test
-	// public void deleteLitTest() throws TException {
-	// Quad q = new Quad(graph, subject, predicate, nodeLit);
-	// QueryPattern qp = new QueryPattern(connection,q);
-	// String s = qp.getDeleteStatement("test", q);
-	// String[] lines = s.split("\n");
-	// assertEquals(6, lines.length);
-	// assertEquals("BEGIN BATCH", lines[0]);
-	//
-	//
-	// verifyDeleteStatement( lines[1], nodeLitHexValue );
-	//
-	//
-	// verifyDeleteStatement( lines[2], nodeLitHexValue );
-	//
-	//
-	// verifyDeleteStatement( lines[3], nodeLitHexValue );
-	//
-	//
-	// verifyDeleteStatement( lines[4], nodeLitHexValue );
-	//
-	// assertEquals("APPLY BATCH;", lines[5]);
-	// }
-	//
-	// @Test
-	// public void deleteLitLangTest() throws TException {
-	// Quad q = new Quad(graph, subject, predicate, nodeLitLang);
-	// QueryPattern qp = new QueryPattern(connection,q);
-	// String s = qp.getDeleteStatement("test", q);
-	// String[] lines = s.split("\n");
-	// assertEquals(6, lines.length);
-	// assertEquals("BEGIN BATCH", lines[0]);
-	//
-	//
-	// verifyDeleteStatement( lines[1], nodeLitLangHexValue );
-	//
-	//
-	// verifyDeleteStatement( lines[2], nodeLitLangHexValue );
-	//
-	//
-	// verifyDeleteStatement( lines[3], nodeLitLangHexValue );
-	//
-	//
-	// verifyDeleteStatement( lines[4], nodeLitLangHexValue );
-	//
-	// assertEquals("APPLY BATCH;", lines[5]);
-	// }
+
 }

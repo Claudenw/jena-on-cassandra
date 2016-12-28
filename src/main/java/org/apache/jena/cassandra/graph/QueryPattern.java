@@ -711,18 +711,22 @@ public class QueryPattern {
 	}
 
 	/**
-	 * This is a query object it contains the where clause and tracks if the 
-	 * query needs to be filtered.  
+	 * This is a query object it contains the where clause and tracks if the
+	 * query needs to be filtered.
 	 *
 	 */
 	public class Query {
 		StringBuilder text;
 		boolean needsFilter = false;
+		@SuppressWarnings("unused")
 		private QueryInfo.WhereClause whereClause;
 
 		/**
-		 * Set the where clause for this query.  Adds where text to the query text.
-		 * @param whereClause The where clause to use
+		 * Set the where clause for this query. Adds where text to the query
+		 * text.
+		 * 
+		 * @param whereClause
+		 *            The where clause to use
 		 */
 		public void setWhere(QueryInfo.WhereClause whereClause) {
 			this.whereClause = whereClause;
@@ -732,11 +736,12 @@ public class QueryPattern {
 	}
 
 	/**
-	 * Class that contains all the information for a query. Once created this class
-	 * has all the possible data for a query.  Methods using this class are expected
-	 * to remove items from the values map, add columns to the extraValue filter, 
-	 * add extra equality checks to the extraWhere method or add text to the suffix 
-	 * before calling getWhereClause() to generate the where clause for the query.
+	 * Class that contains all the information for a query. Once created this
+	 * class has all the possible data for a query. Methods using this class are
+	 * expected to remove items from the values map, add columns to the
+	 * extraValue filter, add extra equality checks to the extraWhere method or
+	 * add text to the suffix before calling getWhereClause() to generate the
+	 * where clause for the query.
 	 *
 	 */
 	public class QueryInfo {
@@ -902,12 +907,12 @@ public class QueryPattern {
 		public boolean objectIsLiteral() {
 			return values.containsKey(ColumnName.V);
 		}
-		
+
 		/**
 		 * 
-		 * A where clause for a query.  This contains the where text and a flag
-		 * to indicate that a filter is required as the where clause is not specific
-		 * enough.
+		 * A where clause for a query. This contains the where text and a flag
+		 * to indicate that a filter is required as the where clause is not
+		 * specific enough.
 		 *
 		 */
 		public class WhereClause {

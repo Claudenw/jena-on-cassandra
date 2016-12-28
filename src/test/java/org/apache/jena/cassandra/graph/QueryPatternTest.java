@@ -737,7 +737,7 @@ public class QueryPatternTest {
 		assertFalse(query.needsFilter);
 	}
 
-	public void verifyInsertNumericValues(String line) {
+	private void verifyInsertNumericValues(String line) {
 		assertTrue("insert columns missing: " + line, line.contains("(subject, predicate, object, graph, "
 				+ ColumnName.D + ", " + ColumnName.I + ", " + ColumnName.V + ")"));
 		assertTrue("graphHexValue missing from " + line, line.contains(" " + graphHexValue + ", "));
