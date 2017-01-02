@@ -29,6 +29,12 @@
 			<artifactId>apache-jena-libs</artifactId>
 			<type>pom</type>
 			<version>${jena-version}</version>
+			<exclusions>
+				<exclusion>
+					<groupId>org.slf4j</groupId>
+					<artifactId>jcl-over-slf4j</artifactId>
+				</exclusion>			
+			</exclusions>
 		</dependency>
 		<dependency>
 			<groupId>junit</groupId>
@@ -38,16 +44,10 @@
 		<dependency>
 			<groupId>org.apache.cassandra</groupId>
 			<artifactId>cassandra-all</artifactId>
-			<exclusions>
-				<exclusion>
-					<groupId>org.slf4j</groupId>
-					<artifactId>log4j-over-slf4j</artifactId>
-				</exclusion>
-			</exclusions>
 		</dependency>
 		<dependency>
 			<groupId>com.datastax.cassandra</groupId>
-			<artifactId>cassandra-driver-core</artifactId>
+			<artifactId>cassandra-driver-core</artifactId>		
 		</dependency>
 		<dependency>
 			<groupId>org.xenei</groupId>
@@ -112,7 +112,7 @@
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-surefire-plugin</artifactId>
 				<configuration>
-					<useSystemClassLoader>false</useSystemClassLoader>
+					<useSystemClassLoader>true</useSystemClassLoader>
 				</configuration>
 			</plugin>
 		</plugins>
@@ -123,11 +123,39 @@
 				<groupId>com.datastax.cassandra</groupId>
 				<artifactId>cassandra-driver-core</artifactId>
 				<version>3.1.2</version>
+				<exclusions>
+				<exclusion>
+					<groupId>org.slf4j</groupId>
+					<artifactId>log4j-over-slf4j</artifactId>
+				</exclusion>
+				<exclusion>
+					<groupId>org.slf4j</groupId>
+					<artifactId>jcl-over-slf4j</artifactId>
+				</exclusion>	
+				<exclusion>
+					<groupId>ch.qos.logback</groupId>
+					<artifactId>logback-classic</artifactId>
+				</exclusion>			
+			</exclusions>
 			</dependency>
 			<dependency>
 				<groupId>org.apache.cassandra</groupId>
 				<artifactId>cassandra-all</artifactId>
 				<version>3.9</version>
+				<exclusions>
+				<exclusion>
+					<groupId>org.slf4j</groupId>
+					<artifactId>log4j-over-slf4j</artifactId>
+				</exclusion>
+				<exclusion>
+					<groupId>org.slf4j</groupId>
+					<artifactId>jcl-over-slf4j</artifactId>
+				</exclusion>	
+				<exclusion>
+					<groupId>ch.qos.logback</groupId>
+					<artifactId>logback-classic</artifactId>
+				</exclusion>			
+			</exclusions>
 			</dependency>
 			<dependency>
 				<groupId>junit</groupId>
