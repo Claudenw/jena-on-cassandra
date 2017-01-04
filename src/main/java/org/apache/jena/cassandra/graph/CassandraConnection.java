@@ -127,19 +127,15 @@ public class CassandraConnection implements Closeable {
 	/* Cassandra Session. */
 	private final Session session;
 
-	private final boolean plainText;
-
 	/**
 	 * Build the table ID from the graph name and the triple pattern.
 	 * 
 	 * The graph ID string is "spog" with the letters replaced with underscores
 	 * "_" if the subject, predicate, object or graph is Node.ANY or null.
-	 * Quad.isUnionGraph( graph ) is considered the same as grap = Node.ANY.
+	 * Quad.isUnionGraph( graph ) is considered the same as graph = Node.ANY.
 	 * 
-	 * @param graph
-	 *            The graph name.
-	 * @param triplePattern
-	 *            The triple to match.
+	 * @param quad
+	 *            The quad to find the id for.
 	 * @return the graph ID string.
 	 */
 	public static String getId(Quad quad) {
@@ -159,7 +155,6 @@ public class CassandraConnection implements Closeable {
 	public CassandraConnection(String contactPoint, int port) {
 		this.cluster = Cluster.builder().addContactPoint(contactPoint).withPort(port).build();
 		this.session = cluster.connect();
-		this.plainText = false;
 	}
 
 	/**
@@ -175,7 +170,6 @@ public class CassandraConnection implements Closeable {
 	public CassandraConnection(Cluster cluster) {
 		this.cluster = cluster;
 		this.session = cluster.connect();
-		this.plainText = false;
 	}
 
 	@Override
@@ -283,24 +277,10 @@ public class CassandraConnection implements Closeable {
 	 *             on serialization error.
 	 */
 	public String valueOf(Node node) throws TException {
-		if (plainText) {
-			return node.toString();
-		}
 		RDF_Term term = new RDF_Term();
 		ThriftConvert.toThrift(node, null, term, false);
 		byte[] bary = ser.serialize(term);
 		return Bytes.toHexString(bary);
 	}
-
-	// /**
-	// * get the hex value for a string.
-	// *
-	// * @param strValue
-	// * the string to convert
-	// * @return The hex value string representing the input string.
-	// */
-	// public String hexOf(String strValue) {
-	// return plainText?strValue:Bytes.toHexString(strValue.getBytes());
-	// }
 
 }

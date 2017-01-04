@@ -63,6 +63,10 @@ public class QueryPattern {
 	 */
 	private final static String SELECT_COLUMNS;
 
+	/* create the select columns string by iterating through the column names
+	 * and adding the columns in the proper order as defined in the ColumnName query
+	 * position value.
+	 */
 	static {
 		ColumnName[] cols = new ColumnName[ColumnName.values().length];
 		for (ColumnName c : ColumnName.values()) {
@@ -233,8 +237,6 @@ public class QueryPattern {
 	/**
 	 * Execute a find on the database.
 	 * 
-	 * @param connection
-	 *            The connection to use
 	 * @param keyspace
 	 *            The keyspace to query.
 	 * @return An ExtendedIterator over the quads.
@@ -246,8 +248,6 @@ public class QueryPattern {
 	/**
 	 * Execute a find on the database.
 	 * 
-	 * @param connection
-	 *            The connection to use
 	 * @param keyspace
 	 *            The keyspace to query.
 	 * @param extraWhere
@@ -261,8 +261,6 @@ public class QueryPattern {
 	/**
 	 * Execute a find on the database.
 	 * 
-	 * @param connection
-	 *            The connection to use
 	 * @param keyspace
 	 *            The keyspace to query.
 	 * @param extraWhere
@@ -427,8 +425,6 @@ public class QueryPattern {
 	/**
 	 * Delete the row(s) from the database.
 	 * 
-	 * @param connection
-	 *            the cassandra connection to use.
 	 * @param keyspace
 	 *            The keyspace to delete from.
 	 */
@@ -437,37 +433,38 @@ public class QueryPattern {
 		ExtendedIterator<Quad> iter = doFind(keyspace);
 		ConcurrentHashMap<Runnable, ResultSetFuture> map = new ConcurrentHashMap<>();
 		ForkJoinPool executor = new ForkJoinPool(1);
+		try {
+			while (iter.hasNext()) {
 
-		while (iter.hasNext()) {
+				try {
+					Quad quad = iter.next();
+					String query = getDeleteStatement(keyspace, quad);
 
-			try {
-				Quad quad = iter.next();
-				String query = getDeleteStatement(keyspace, quad);
-
-				Runnable runner = new Runnable() {
-					@Override
-					public void run() {
-						LOG.debug("delete completed");
-						map.remove(this);
+					Runnable runner = new Runnable() {
+						@Override
+						public void run() {
+							LOG.debug("delete completed");
+							map.remove(this);
+						}
+					};
+					if (LOG.isDebugEnabled()) {
+						LOG.debug("executing query: " + query);
 					}
-				};
-				if (LOG.isDebugEnabled()) {
-					LOG.debug("executing query: " + query);
+					ResultSetFuture rsf = connection.getSession().executeAsync(query);
+					map.put(runner, rsf);
+					rsf.addListener(runner, executor);
+				} catch (TException e) {
+					LOG.error(String.format("Error deleting %s", quad), e);
 				}
-				ResultSetFuture rsf = connection.getSession().executeAsync(query);
-				map.put(runner, rsf);
-				rsf.addListener(runner, executor);
-			} catch (TException e) {
-				LOG.error(String.format("Error deleting %s", quad), e);
+
 			}
 
+			while (!map.isEmpty()) {
+				Thread.yield();
+			}
+		} finally {
+			executor.shutdown();
 		}
-
-		while (!map.isEmpty()) {
-			Thread.yield();
-		}
-
-		executor.shutdown();
 
 	}
 
@@ -475,8 +472,6 @@ public class QueryPattern {
 	 * Get a count of the triples that match the pattern for this table in the
 	 * specified keyspace.
 	 * 
-	 * @param connection
-	 *            the Cassandra connection to use.
 	 * @param keyspace
 	 *            the keyspace to query.
 	 * @return The count as a long
@@ -544,8 +539,6 @@ public class QueryPattern {
 	/**
 	 * Performs the insert of the data.
 	 * 
-	 * @param connection
-	 *            The cassandra connection.
 	 * @param keyspace
 	 *            The keyspace for the table.
 	 * @throws TException
@@ -575,7 +568,7 @@ public class QueryPattern {
 	}
 
 	/**
-	 * Converts a Cassandra Row to a Quad.
+	 * Function to convert a Cassandra Row to a Quad.
 	 *
 	 */
 	public static class RowToQuad implements Function<Row, Quad> {
@@ -616,7 +609,7 @@ public class QueryPattern {
 	}
 
 	/**
-	 * Converts a Cassandra Row to a Node.
+	 * Function to convert a Cassandra Row to a Node.
 	 *
 	 */
 	public static class RowToNode implements Function<Row, Node> {
@@ -781,11 +774,11 @@ public class QueryPattern {
 		 * Builds the where clause for a query based on the table name, the quad
 		 * we are looking for and any extra values.
 		 * 
-		 * @return A string builder that contains the constructed where clause.
+		 * @return A WhereClause object that contains the constructed where clause.
 		 * @throws TException
 		 *             on encoding error.
 		 */
-		public /* StringBuilder */ WhereClause getWhereClause() throws TException {
+		public WhereClause getWhereClause() throws TException {
 			/*
 			 * Cassandra queries have some particular requirements:
 			 * 
@@ -894,16 +887,28 @@ public class QueryPattern {
 			return retval;
 		}
 
+		/**
+		 * Get the list of non key columns in the query.
+		 * @return
+		 */
 		public List<ColumnName> getNonKeyColumns() {
 			List<ColumnName> lst = new ArrayList<ColumnName>(values.keySet());
 			lst.removeAll(tableName.getPrimaryKeyColumns());
 			return lst;
 		}
 
+		/**
+		 * see if there are any non primary key data columns in the query.
+		 * @return true if there are no primary key data columns.
+		 */
 		public boolean hasNonPrimaryData() {
 			return !getNonKeyColumns().isEmpty();
 		}
 
+		/**
+		 * See if the there is a literal in the object in the query values.
+		 * @return true if there is a literal object in the values.
+		 */
 		public boolean objectIsLiteral() {
 			return values.containsKey(ColumnName.V);
 		}

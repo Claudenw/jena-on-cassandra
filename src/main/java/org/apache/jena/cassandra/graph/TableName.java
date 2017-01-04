@@ -27,8 +27,9 @@ import java.util.List;
  *
  */
 public class TableName {
+	private static final int PRIMARY_KEY_SIZE = 4;
 	/* The array of primary key columns */
-	private ColumnName primaryKey[] = new ColumnName[4];
+	private ColumnName primaryKey[] = new ColumnName[PRIMARY_KEY_SIZE];
 	/*
 	 * The name of this table.
 	 */
@@ -42,7 +43,7 @@ public class TableName {
 	 */
 	public TableName(String name) {
 		this.name = name.toUpperCase();
-		for (int i = 0; i < 4; i++) {
+		for (int i = 0; i < PRIMARY_KEY_SIZE; i++) {
 			primaryKey[i] = ColumnName.valueOf(this.name.substring(i, i + 1));
 		}
 	}
@@ -52,7 +53,7 @@ public class TableName {
 	 * @return the number of columns in the primary key.
 	 */
 	public int getPrimaryKeyColumnCount() {
-		return 4;
+		return PRIMARY_KEY_SIZE;
 	}
 
 	/**
@@ -63,7 +64,7 @@ public class TableName {
 	 * @return the ColumnName at that position in the table definition.
 	 */
 	public ColumnName getPrimaryKeyColumn(int i) {
-		if (i < 0 || i >= getPrimaryKeyColumnCount()) {
+		if (i < 0 || i >= PRIMARY_KEY_SIZE) {
 			throw new IndexOutOfBoundsException();
 		}
 		return primaryKey[i];
@@ -128,6 +129,10 @@ public class TableName {
 	 * @return an array of table and index creation strings.
 	 */
 	public String[] getCreateTableStatements(String keyspace) {
+		/* there are 4 statements in a create table statement.
+		 * create the table
+		 * and 3 indexes. 
+		 */
 		String[] retval = new String[4];
 
 		StringBuilder sb = new StringBuilder("CREATE TABLE ").append(String.format("%s.%s (", keyspace, this));

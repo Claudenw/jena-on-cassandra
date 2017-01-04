@@ -1,8 +1,12 @@
 # jena-on-cassandra
 An implementation of the Jena storage layer on the Cassandra storage engine.
 
-To use the code create an instance of CassandraConnection  and then use that to create a DatasetGraphCassandra or 
-GraphCassandra object.  When you create either of those objects you have to specify the keyspace that you want to use.
+Create a keyspace on the Cassandra server for each DataSet or collection of graphs.
 
-Once constructed they should work as any normal Graph or DatasetGraph would.
+Create an instance of CassandraConnection.
+
+Use the keyspace name and the CassandraConnection to create a DatasetGraphCassandra or 
+GraphCassandra instance.
+
+Once constructed they should work as any normal DatasetGraph or Graph.
 

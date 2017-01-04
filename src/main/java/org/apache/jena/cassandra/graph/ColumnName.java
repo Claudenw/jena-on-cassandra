@@ -44,11 +44,11 @@ public enum ColumnName {
 	
 	private static final Log LOG = LogFactory.getLog(ColumnName.class);
 	
-	/* the long name of the column */
+	/* the long name of the column -- first character must be unique across all column names*/
 	private String name;
-	/* the cassandra data type of the column */
+	/* the data type of the column */
 	private ColumnType datatype;
-	/* the query position in the standard query */
+	/* the column position in the standard query -1 = not included.*/
 	private int queryPos;
 
 	/**
@@ -56,6 +56,8 @@ public enum ColumnName {
 	 * 
 	 * @param name
 	 *            The long name of the column
+	 * @param datatype The data type for the column
+	 * @param queryPos the column position in the standard query.
 	 */
 	ColumnName(String name, ColumnType datatype, int queryPos) {
 		this.name = name;
@@ -66,7 +68,7 @@ public enum ColumnName {
 	/**
 	 * The position of this column in the standard query.
 	 * -1 if not included in the standard query.
-	 * @return the position fo this column in the standard query.  
+	 * @return the position for this column in the standard query.  
 	 */
 	public int getQueryPos()
 	{
@@ -84,7 +86,7 @@ public enum ColumnName {
 	/**
 	 * Return the column id char.
 	 * 
-	 * @return
+	 * @return the first character of the name
 	 */
 	public char getId() {
 		return name.charAt(0);
@@ -157,6 +159,12 @@ public enum ColumnName {
 		}
 	}
 	
+	/**
+	 * The string to add to a query for an equality check.
+	 * @param connection The connection to use
+	 * @param value the object value.
+	 * @return the string for the query
+	 */
 	public String getEqualityValue( CassandraConnection connection, Object value )
 	{
 		if (value == null)
@@ -166,8 +174,12 @@ public enum ColumnName {
 		return String.format( "%s=%s", this, getInsertValue( connection, value ));
 	}
 	
-	
-
+	/**
+	 * The string to add an insert values statement for this column.
+	 * @param connection The connection to use
+	 * @param value the value of the object.
+	 * @return The value string.
+	 */
 	public String getInsertValue( CassandraConnection connection, Object value )
 	{
 		if (value == null)
@@ -189,6 +201,7 @@ public enum ColumnName {
 			return String.format( "'%s'", value.toString().replaceAll("'", "''"));		
 		}
 	}
+	
 	/**
 	 * The text to create the column.
 	 * @return the column definition for construction.
@@ -197,6 +210,12 @@ public enum ColumnName {
 		return String.format( "%s %s", name, datatype);
 	}
 	
+	/**
+	 * Get the value object for this column based on the the data in the quad.
+	 * 
+	 * @param quad The quad data.
+	 * @return The object for this column.
+	 */
 	public Object getValue(Quad quad)
 	{
 		Node n;
