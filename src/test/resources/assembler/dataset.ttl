@@ -26,7 +26,7 @@ ex:cluster 	rdf:type 	joc:Cluster ;
 	.
 
 # Make a model
-ex:model 	rdf:type	joc:Model ;
+ex:dataset 	rdf:type	joc:Dataset ;
 	joc:useCluster 	"Test Cluster" ;
 	joc:keyspace 	"testKeyspace" ;
 	.	

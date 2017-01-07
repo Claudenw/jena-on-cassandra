@@ -48,9 +48,9 @@ import org.junit.Test;
 import com.datastax.driver.core.Cluster;
 import com.datastax.driver.core.Configuration;
 
-public class CassandraModelAssemblerTest {
+public class CassandraDatasetAssemblerTest {
 	
-private CassandraModelAssembler assembler;
+private CassandraDatasetAssembler assembler;
 private URL url;
 private Model model;
 
@@ -58,8 +58,8 @@ private Model model;
 	
 	@Before
 	public void before() throws IOException {
-		assembler = new CassandraModelAssembler();
-		url = Thread.currentThread().getContextClassLoader().getResource( "assembler/model.ttl");
+		assembler = new CassandraDatasetAssembler();
+		url = Thread.currentThread().getContextClassLoader().getResource( "assembler/dataset.ttl");
 		model = ModelFactory.createDefaultModel();
 		model.read( url.toString() );
 	}
@@ -72,8 +72,8 @@ private Model model;
         		"Test Cluster")) ;
         ARQ.getContext().set(symbol, cluster);
         
-		Object result = assembler.open( model.createResource( "http://example.com/model"));
-		assertTrue( result instanceof Model);
+		Object result = assembler.open( model.createResource( "http://example.com/dataset"));
+		assertTrue( result instanceof Dataset);
 		
 	}
 	
@@ -83,9 +83,9 @@ private Model model;
 		VocabCassandra.init();
 		Model model = AssemblerUtils.readAssemblerFile( url.toString() ); 
 		
-		Object result = Assembler.general.open(model.createResource( "http://example.com/model"));
+		Object result = Assembler.general.open(model.createResource( "http://example.com/dataset"));
 		        
-		assertTrue( result instanceof Model);
+		assertTrue( result instanceof Dataset);
 		
 	}
 

@@ -13,7 +13,7 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-@prefix joc:     <https :/jena.apache.org/jena-on-cassandra#> .
+@prefix joc:     <https://jena.apache.org/jena-on-cassandra#> .
 @prefix rdf:     <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
 @prefix ja:      <http://jena.hpl.hp.com/2005/11/Assembler#> .
 @prefix ex:	 <http://example.com/> .

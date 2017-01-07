@@ -169,7 +169,7 @@ public class CassandraConnection implements Closeable {
 
 	public CassandraConnection(Cluster cluster) {
 		this.cluster = cluster;
-		this.session = cluster.connect();
+		this.session = cluster.newSession();
 	}
 
 	@Override

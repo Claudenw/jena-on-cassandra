@@ -79,16 +79,19 @@ public class CassandraSetup {
 
 		
         cassandraDaemon = new CassandraDaemon();
-        cassandraDaemon.init(null);
-        cassandraDaemon.start();
+        cassandraDaemon.activate();
+        //cassandraDaemon.init(null);
+        //cassandraDaemon.start();
 		    
 
 	}
 
 	public void shutdown() {
-		cassandraDaemon.stop();		
-		cassandraDaemon.destroy();
+		cassandraDaemon.deactivate();
+		//cassandraDaemon.stop();		
+		//cassandraDaemon.destroy();
 		FileUtils.deleteRecursive(tempDir);
+		cassandraDaemon=null;
 	}
 
 	/**

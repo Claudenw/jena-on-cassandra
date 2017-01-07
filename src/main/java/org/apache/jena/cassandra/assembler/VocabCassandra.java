@@ -26,7 +26,7 @@ import org.apache.jena.tdb.assembler.TDBGraphAssembler;
 
 public class VocabCassandra {
 	
-	private static final String NS = "https:/jena.apache.org/jena-on-cassandra#" ; 
+	private static final String NS = "https://jena.apache.org/jena-on-cassandra#" ; 
 	
 	public static final Resource Cluster = ResourceFactory.createResource( NS+"Cluster"); 
 
