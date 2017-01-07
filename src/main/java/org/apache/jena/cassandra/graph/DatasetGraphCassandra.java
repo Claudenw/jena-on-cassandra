@@ -210,4 +210,5 @@ public class DatasetGraphCassandra extends DatasetGraphBase {
 		}
 		getGraph(g).delete(Triple.createMatch(s, p, o));
 	}
+
 }

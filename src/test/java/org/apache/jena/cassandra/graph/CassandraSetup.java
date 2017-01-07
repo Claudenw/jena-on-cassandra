@@ -30,6 +30,7 @@ import java.util.Set;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.service.CassandraDaemon;
 import org.apache.cassandra.service.EmbeddedCassandraService;
 import org.apache.commons.io.IOUtils;
 import org.apache.jena.ext.com.google.common.io.Files;
@@ -47,7 +48,7 @@ public class CassandraSetup {
 	private final int storagePort;
 	private final int sslStoragePort;
 	private final int nativePort;
-	private EmbeddedCassandraService cassandra;
+	private CassandraDaemon cassandraDaemon;;
 
 	private final static String YAML_FMT = "%n%s: %s%n";
 
@@ -76,13 +77,17 @@ public class CassandraSetup {
 		yamlOut.close();
 		System.setProperty("cassandra.config", yaml.toURI().toString());
 
-		cassandra = new EmbeddedCassandraService();
-		cassandra.start();
+		
+        cassandraDaemon = new CassandraDaemon();
+        cassandraDaemon.init(null);
+        cassandraDaemon.start();
+		    
 
 	}
 
 	public void shutdown() {
-		cassandra = null;
+		cassandraDaemon.stop();		
+		cassandraDaemon.destroy();
 		FileUtils.deleteRecursive(tempDir);
 	}
 

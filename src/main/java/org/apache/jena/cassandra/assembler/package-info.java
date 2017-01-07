@@ -25,21 +25,23 @@
  * 
  * <pre>
  * [] rdf:type joc:Cluster ;
- *    joc:name "clustername" ;   This must be unique among all clusters
- *    joc:address url ; 		 One or more URLs may be provided. 
- *    joc:port port;             Zero or 1 port may be specified.
- *    joc:compression "snappy" ; Zero or 1 compression may be specified.                          
- *    joc:credentials [          Zero or 1 credentials
- *        joc:user "username" ;  User name to log in with
- *        joc:password "passeord"; Password  
+ *    joc:name "clustername" ;   # This must be unique among all clusters
+ *    joc:address url ; 		 # One or more URLs may be provided. 
+ *    joc:port port;             # Zero or 1 port may be specified.
+ *    joc:compression "snappy" ; # Zero or 1 compression may be specified.                          
+ *    joc:credentials [          # Zero or 1 credentials
+ *        joc:user "username" ;  # User name to log in with
+ *        joc:password "passeord"; # Password  
  *        ];
- *    joc:metrics "true"		 Zero or 1 flags.
- *    joc:ssl "true"			 Zero or 1 flags.
+ *    joc:metrics "true"		 # Zero or 1 flags.
+ *    joc:ssl "true"			 # Zero or 1 flags.
  *    </pre>
  *    
  * The compression value must be one of the the Cassandra Protocol Options Compression enum values.
  * 
  * @see com.datastax.driver.core.ProtocolOptions.Compression
+ * 
+ * The flags need only exist the values do not matter.
  * 
  * <b>Make a dataset</b>
  * 
@@ -51,10 +53,10 @@
  *  
  * The useCluster option must be the name specified in a Cluster.
  * 
- * <b>Make a named graph</b>
+ * <b>Make a model</b>
  * 
  * <pre>
- * [] rdf:type joc:Graph ;
+ * [] rdf:type joc:Model ;
  *    joc:useCluster "clusterName";
  *    joc:keyspace "keyspace"
  *    joc:graphName &lt;graphIRI&gt;  

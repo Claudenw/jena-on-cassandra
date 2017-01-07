@@ -29,8 +29,14 @@ import org.apache.jena.assembler.Mode;
 import org.apache.jena.assembler.assemblers.AssemblerBase;
 import org.apache.jena.assembler.exceptions.AssemblerException;
 import org.apache.jena.query.ARQ;
+import org.apache.jena.rdf.model.Model;
+import org.apache.jena.rdf.model.Property;
+import org.apache.jena.rdf.model.RDFNode;
 import org.apache.jena.rdf.model.Resource;
+import org.apache.jena.rdf.model.Statement;
+import org.apache.jena.sparql.util.NotUniqueException;
 import org.apache.jena.sparql.util.Symbol;
+import org.apache.jena.vocabulary.RDF;
 
 import com.datastax.driver.core.Cluster;
 import com.datastax.driver.core.ProtocolOptions.Compression;
@@ -50,7 +56,7 @@ public class CassandraClusterAssembler extends AssemblerBase implements Assemble
 
 	
 	@Override
-	public Object open(Assembler a, Resource root, Mode mode) {
+	public Cluster open(Assembler a, Resource root, Mode mode) {
 		if (! exactlyOneProperty(root, VocabCassandra.name )) {
 			throw new AssemblerException( root, String.format( "%s must be specified", VocabCassandra.name.getLocalName()));
 		}
@@ -84,7 +90,7 @@ public class CassandraClusterAssembler extends AssemblerBase implements Assemble
         String compression = getStringValue( root, VocabCassandra.compression);
         if (compression != null)
         {
-        	Compression comp = Compression.valueOf(compression);
+        	Compression comp = Compression.valueOf(compression.toUpperCase());
         	if (comp == null)
         	{
             	throw new AssemblerException( root, String.format( "Compression (%s) must be 'snappy' or 'lz4' or not specified", port));        		
@@ -116,13 +122,13 @@ public class CassandraClusterAssembler extends AssemblerBase implements Assemble
         	builder.withCredentials(username, password);
         }
         
-        Resource metrics = getResourceValue( root, VocabCassandra.metrics);
+        RDFNode metrics = getNode( root, VocabCassandra.metrics);
         if (metrics == null)
         {
         	builder.withoutMetrics();
         }
         
-        Resource ssl = getResourceValue( root, VocabCassandra.ssl);
+        RDFNode ssl = getNode( root, VocabCassandra.ssl);
         if (ssl == null)
         {
         	builder.withSSL();
@@ -135,5 +141,44 @@ public class CassandraClusterAssembler extends AssemblerBase implements Assemble
         
         ARQ.getContext().set(symbol, cluster);
         return cluster;
+	}
+	
+	private RDFNode getNode( Resource r, Property p)
+	{
+		if ( !atmostOneProperty(r, p) )
+            throw new NotUniqueException(r, p) ;
+        Statement s = r.getProperty(p) ;
+        if ( s == null )
+            return null ;
+        return s.getObject();
+	}
+	
+	public static Cluster getCluster( Resource root, String clusterName )
+	{
+       
+        Symbol symbol = Symbol.create(String.format( "%s/%s", VocabCassandra.Cluster.getURI(),
+        		clusterName)) ;
+        
+        Object o = ARQ.getContext().get(symbol);
+        if (o == null)
+        {
+        	Model model = root.getModel();
+        	for (Resource r : model.listResourcesWithProperty( RDF.type, VocabCassandra.Cluster).toList())
+    		{
+        		if (r.hasLiteral( VocabCassandra.name, clusterName))
+        		{
+        			o = Assembler.general.open(r);
+        			break;
+        		}
+    		}
+        }
+        
+        if (o != null && o instanceof Cluster)
+        {
+        	return (Cluster)o;
+        } else {
+        	throw new AssemblerException(root, String.format( "%s is not a valid cluster name", clusterName));
+        }
+
 	}
 }

@@ -45,17 +45,7 @@ public class CassandraDatasetAssembler extends AssemblerBase implements Assemble
         String keyspace = getStringValue(root, VocabCassandra.keyspace) ;
         String clusterName = getStringValue(root, VocabCassandra.useCluster) ;
        
-        Cluster cluster = null;
-        Symbol symbol = Symbol.create(String.format( "%s/%s", VocabCassandra.Cluster.getURI(),
-        		clusterName)) ;
-        
-        Object o = ARQ.getContext().get(symbol);
-        if (o instanceof Cluster)
-        {
-        	cluster = (Cluster)o;
-        } else {
-        	throw new AssemblerException(root, String.format( "%s is not a valid cluster name", clusterName));
-        }
+        Cluster cluster = CassandraClusterAssembler.getCluster(root, clusterName);
         
         CassandraConnection connection = new CassandraConnection( cluster );
         DatasetGraph dsg = new DatasetGraphCassandra( keyspace, connection );

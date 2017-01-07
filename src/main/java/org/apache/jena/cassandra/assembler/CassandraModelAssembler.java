@@ -27,13 +27,15 @@ import org.apache.jena.assembler.assemblers.AssemblerBase;
 import org.apache.jena.assembler.exceptions.AssemblerException;
 import org.apache.jena.cassandra.graph.CassandraConnection;
 import org.apache.jena.cassandra.graph.GraphCassandra;
+import org.apache.jena.graph.Graph;
 import org.apache.jena.query.ARQ;
+import org.apache.jena.rdf.model.ModelFactory;
 import org.apache.jena.rdf.model.Resource;
 import org.apache.jena.sparql.util.Symbol;
 
 import com.datastax.driver.core.Cluster;
 
-public class CassandraGraphAssembler extends AssemblerBase implements Assembler {
+public class CassandraModelAssembler extends AssemblerBase implements Assembler {
 
 	// Make a model - the default model of the Cassandra dataset
     // [] rdf:type joc:Graph ;
@@ -52,21 +54,12 @@ public class CassandraGraphAssembler extends AssemblerBase implements Assembler 
         String clusterName = getStringValue(root, VocabCassandra.useCluster) ;
         Resource graphName = getResourceValue(root, VocabCassandra.graphName) ;
         
-        Cluster cluster = null;
-        Symbol symbol = Symbol.create(String.format( "%s/%s", VocabCassandra.Cluster.getURI(),
-        		clusterName)) ;
-        
-        Object o = ARQ.getContext().get(symbol);
-        if (o instanceof Cluster)
-        {
-        	cluster = (Cluster)o;
-        } else {
-        	throw new AssemblerException(root, String.format( "%s is not a valid cluster name", clusterName));
-        }
+        Cluster cluster = CassandraClusterAssembler.getCluster( root, clusterName );
         
         CassandraConnection connection = new CassandraConnection( cluster );
         
-        return new GraphCassandra( (graphName==null?null:graphName.asNode()), keyspace, connection );
+        Graph g = new GraphCassandra( (graphName==null?null:graphName.asNode()), keyspace, connection );
+        return ModelFactory.createModelForGraph(g);
         
 	}
 

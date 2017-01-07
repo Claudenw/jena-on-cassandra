@@ -20,10 +20,13 @@ package org.apache.jena.cassandra.assembler;
 import org.apache.jena.rdf.model.Property;
 import org.apache.jena.rdf.model.Resource;
 import org.apache.jena.rdf.model.ResourceFactory;
+import org.apache.jena.sparql.core.assembler.AssemblerUtils;
+import org.apache.jena.tdb.assembler.DatasetAssemblerTDB;
+import org.apache.jena.tdb.assembler.TDBGraphAssembler;
 
 public class VocabCassandra {
 	
-	private static final String NS = "https://github.com/Claudenw/jena-on-cassandra#" ; 
+	private static final String NS = "https:/jena.apache.org/jena-on-cassandra#" ; 
 	
 	public static final Resource Cluster = ResourceFactory.createResource( NS+"Cluster"); 
 
@@ -43,7 +46,19 @@ public class VocabCassandra {
 	public static final Property useCluster = ResourceFactory.createProperty( NS, "useCluster");
 	public static final Property keyspace = ResourceFactory.createProperty( NS, "keyspace");
 	
-	public static final Resource Graph = ResourceFactory.createResource( NS+"Graph");
+	public static final Resource Model = ResourceFactory.createResource( NS+"Model");
 	public static final Property graphName = ResourceFactory.createProperty( NS, "graphName");
 
+	private static boolean initialized = false ; 
+    
+    static { init() ; }
+    
+    static synchronized public void init() {
+        if ( initialized )
+            return;
+        initialized = true;
+        AssemblerUtils.registerDataset(Dataset, new CassandraDatasetAssembler());
+        AssemblerUtils.registerModel(Model, new CassandraModelAssembler());
+        AssemblerUtils.registerAssembler(null,Cluster, new CassandraClusterAssembler());
+    }
 }
