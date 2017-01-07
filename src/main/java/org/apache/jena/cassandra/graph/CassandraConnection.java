@@ -232,11 +232,11 @@ public class CassandraConnection implements Closeable {
 	 */
 	public void truncateTables(String keyspace) {
 
-		StringBuilder sb = new StringBuilder("BEGIN BATCH").append(System.lineSeparator());
+		//StringBuilder sb = new StringBuilder();//"BEGIN BATCH").append(System.lineSeparator());
 		for (TableName tableName : CassandraConnection.getTableList()) {
-			sb.append(String.format("TRUNCATE %s.%s ;%n", keyspace, tableName.getName()));
+			session.execute(String.format("TRUNCATE %s.%s ;", keyspace, tableName.getName()));
 		}
-		session.execute(sb.append("APPLY BATCH;").toString());
+		//session.execute(sb/*.append("APPLY BATCH;")*/.toString());
 	}
 
 	/**

@@ -60,8 +60,12 @@ public class GraphCassandra extends GraphBase {
 	private static final Log LOG = LogFactory.getLog(GraphCassandra.class);
 
 	/**
-	 * Constructor. A null or Node.ANY for the graph name results in the
-	 * UnionGraph being used.
+	 * Constructor. 
+	 * 
+	 * <ul>
+	 * <li>A null graph name is considered as the default graph. e.g. urn:x-arq:DefaultGraph</li>
+	 * <li>Node.ANY graph name is condiderd as the Union graph. e.g. urn:x-arq:UnionGraph</li>
+	 * </ul>
 	 * 
 	 * @param graph
 	 *            The name of the graph.
@@ -77,7 +81,7 @@ public class GraphCassandra extends GraphBase {
 		if (StringUtils.isBlank(keyspace)) {
 			throw new IllegalArgumentException("Keyspace may not be null");
 		}
-		this.graph = graph == null ? Node.ANY : (Quad.isUnionGraph(graph) ? Node.ANY : graph);
+		this.graph = graph == null ? Quad.defaultGraphIRI : (Quad.isUnionGraph(graph) ? Node.ANY : graph);
 		this.connection = connection;
 		this.keyspace = keyspace;
 	}
@@ -105,9 +109,9 @@ public class GraphCassandra extends GraphBase {
 
 	@Override
 	public void performAdd(Triple t) {
-		if (Quad.isDefaultGraph(graph)) {
-			throw new AddDeniedException("Can not add to default graph named " + graph);
-		}
+//		if (Quad.isDefaultGraph(graph)) {
+//			throw new AddDeniedException("Can not add to default graph named " + graph);
+//		}
 		QueryPattern pattern = new QueryPattern(connection, graph, t);
 		try {
 			pattern.doInsert(keyspace);
@@ -118,9 +122,9 @@ public class GraphCassandra extends GraphBase {
 
 	@Override
 	public void performDelete(Triple t) {
-		if (Quad.isDefaultGraph(graph)) {
-			throw new AddDeniedException("Can not delete from default graph named " + graph);
-		}
+//		if (Quad.isDefaultGraph(graph)) {
+//			throw new AddDeniedException("Can not delete from default graph named " + graph);
+//		}
 		// do not delete any triple with a wild card.
 		if (t.getMatchSubject() == null || t.getMatchPredicate() == null ||
 				t.getMatchObject() == null)

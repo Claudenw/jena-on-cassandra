@@ -185,7 +185,7 @@ public class DatasetGraphCassandra extends DatasetGraphBase {
 
 	@Override
 	public boolean isEmpty() {
-		return getGraph(null).isEmpty();
+		return getGraph( Quad.unionGraph ).isEmpty();
 	}
 
 	@Override
@@ -201,14 +201,9 @@ public class DatasetGraphCassandra extends DatasetGraphBase {
 
 	@Override
 	public void deleteAny(Node g, Node s, Node p, Node o) {
-		if (g == null || Node.ANY.equals(g)) {
-			Iterator<Node> graphs = listGraphNodes();
-			while (graphs.hasNext()) {
-				deleteAny(graphs.next(), s, p, o);
-			}
-			return;
-		}
-		getGraph(g).delete(Triple.createMatch(s, p, o));
+		Quad q = new Quad( g, s==null?Node.ANY:s, p==null?Node.ANY:p, o==null?Node.ANY:o );
+		QueryPattern pattern = new QueryPattern(connection, q);	
+		pattern.doDelete(keyspace);	
 	}
 
 }

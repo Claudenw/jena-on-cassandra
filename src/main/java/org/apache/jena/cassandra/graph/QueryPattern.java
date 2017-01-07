@@ -429,7 +429,12 @@ public class QueryPattern {
 	 *            The keyspace to delete from.
 	 */
 	public void doDelete(String keyspace) {
-
+		if (quad.getGraph() == null && Triple.ANY.equals(quad.asTriple()))
+		{
+			connection.truncateTables( keyspace );
+		}
+		else 
+		{
 		ExtendedIterator<Quad> iter = doFind(keyspace);
 		ConcurrentHashMap<Runnable, ResultSetFuture> map = new ConcurrentHashMap<>();
 		ForkJoinPool executor = new ForkJoinPool(1);
@@ -464,6 +469,7 @@ public class QueryPattern {
 			}
 		} finally {
 			executor.shutdown();
+		}
 		}
 
 	}

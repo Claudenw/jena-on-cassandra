@@ -19,6 +19,9 @@
 package org.apache.jena.cassandra.graph;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.jena.graph.Graph;
 import org.apache.jena.graph.NodeFactory;
@@ -35,8 +38,8 @@ import org.xenei.junit.contract.IProducer;
 import org.xenei.junit.contract.Contract.Inject;
 
 @RunWith(ContractSuite.class)
-@ContractImpl(GraphCassandra.class)
-public class TestGraphCassandra {
+@ContractImpl(DatasetGraphCassandra.class)
+public class TestDatasetGraphCassandra {
 
 	private CassandraConnection connection;
 	private static final String KEYSPACE = "test";
@@ -72,21 +75,17 @@ public class TestGraphCassandra {
 	}
 
 	@Inject
-	public IProducer<GraphCassandra> getGraphProducer() {
+	public IProducer<DatasetGraphCassandra> getGraphProducer() {
 		return graphProducer;
 	}
 
-	protected IProducer<GraphCassandra> graphProducer = new AbstractGraphProducer<GraphCassandra>() {
+	protected IProducer<DatasetGraphCassandra> graphProducer = new IProducer<DatasetGraphCassandra>() {
+
+		
+		List<DatasetGraphCassandra> lst = new ArrayList<DatasetGraphCassandra>();
 
 		@Override
-		protected void afterClose(Graph g) {
-			((GraphCassandra) g).performDelete(Triple.ANY);
-		}
-
-		int graphCount = 0;
-
-		@Override
-		protected GraphCassandra createNewGraph() {
+		public DatasetGraphCassandra newInstance() {
 			if (connection == null) {
 				try {
 					setupTestGraphCassandra();
@@ -94,18 +93,18 @@ public class TestGraphCassandra {
 					throw new RuntimeException(e);
 				}
 			}
-			return new GraphCassandra(NodeFactory.createURI("http://example.com/graph" + graphCount++), KEYSPACE,
-					connection);
+			DatasetGraphCassandra dsg = new DatasetGraphCassandra( KEYSPACE, connection); 
+			lst.add(dsg);
+			return dsg;
 		}
 
 		@Override
-		public Graph[] getDependsOn(Graph g) {
-			return null;
-		}
-
-		@Override
-		public Graph[] getNotDependsOn(Graph g) {
-			return new Graph[] { createNewGraph() };
+		public void cleanUp() {
+			for ( DatasetGraphCassandra dsg : lst)
+			{
+				dsg.close();
+			}
+			connection.truncateTables( KEYSPACE );
 		}
 
 	};
