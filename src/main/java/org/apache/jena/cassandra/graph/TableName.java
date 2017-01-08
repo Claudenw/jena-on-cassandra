@@ -18,6 +18,7 @@
 package org.apache.jena.cassandra.graph;
 
 import java.util.Arrays;
+import java.util.Iterator;
 import java.util.List;
 
 /**
@@ -128,23 +129,44 @@ public class TableName {
 	 *            The keyspace to create the tables in.
 	 * @return an array of table and index creation strings.
 	 */
-	public String[] getCreateTableStatements(String keyspace) {
+	public String[] getCreateTableStatements() {
 		/* there are 4 statements in a create table statement.
 		 * create the table
 		 * and 3 indexes. 
 		 */
 		String[] retval = new String[4];
 
-		StringBuilder sb = new StringBuilder("CREATE TABLE ").append(String.format("%s.%s (", keyspace, this));
+		StringBuilder sb = new StringBuilder("CREATE TABLE IF NOT EXISTS ").append(String.format("%s (", this));
 		for (ColumnName col : ColumnName.values()) {
 			sb.append(col.getCreateText()).append(", ");
 		}
 		sb.append("PRIMARY KEY ").append(getPrimaryKeyStr()).append(")");
 		retval[0] = sb.toString();
 
-		retval[1] = String.format("CREATE INDEX %2$s_%3$s ON %1$s.%2$s (%3$s)", keyspace, this, ColumnName.I);
-		retval[2] = String.format("CREATE INDEX %2$s_%3$s ON %1$s.%2$s (%3$s)", keyspace, this, ColumnName.V);
-		retval[3] = String.format("CREATE INDEX %2$s_%3$s ON %1$s.%2$s (%3$s)", keyspace, this, ColumnName.D);
+		retval[1] = String.format("CREATE INDEX IF NOT EXISTS %1$s_%2$s ON %1$s (%2$s)", this, ColumnName.I);
+		retval[2] = String.format("CREATE INDEX IF NOT EXISTS %1$s_%2$s ON %1$s (%2$s)", this, ColumnName.V);
+		retval[3] = String.format("CREATE INDEX IF NOT EXISTS %1$s_%2$s ON %1$s (%2$s)", this, ColumnName.D);
 		return retval;
+	}
+	
+	/**
+	 * Create the tables in the keyspace.
+	 * 
+	 * @param keyspace
+	 *            The keyspace to create the tables in.
+	 * @return an array of table and index creation strings.
+	 */
+	public Iterator<String> getDeleteTableStatements() {
+		/* there are 4 statements in a create table statement.
+		 * create the table
+		 * and 3 indexes. 
+		 */
+		String[] retval = new String[4];
+
+		retval[0] = String.format("DROP TABLE IF EXISTS %s", this);
+		retval[1] = String.format("DROP INDEX IF EXISTS %s_%s", this, ColumnName.I);
+		retval[2] = String.format("DROP INDEX IF EXISTS %s_%s", this, ColumnName.V);
+		retval[3] = String.format("DROP INDEX IF EXISTS %s_%s", this, ColumnName.D);
+		return Arrays.asList(retval).iterator();
 	}
 }

@@ -67,8 +67,9 @@ public class TestDatasetGraphCassandra {
 		connection.createKeyspace(String.format(
 						"CREATE KEYSPACE IF NOT EXISTS %s WITH REPLICATION = { 'class' : 'SimpleStrategy', 'replication_factor' : 1 }",
 						KEYSPACE));
-		connection.deleteTables(KEYSPACE);
+		//connection.deleteTables(KEYSPACE);
 		connection.createTables(KEYSPACE);
+		connection.truncateTables(KEYSPACE);
 	}
 
 	@Inject

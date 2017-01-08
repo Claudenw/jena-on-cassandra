@@ -36,6 +36,8 @@ import org.apache.jena.graph.Node;
 import org.apache.jena.riot.thrift.ThriftConvert;
 import org.apache.jena.riot.thrift.wire.RDF_Term;
 import org.apache.jena.sparql.core.Quad;
+import org.apache.jena.util.iterator.ExtendedIterator;
+import org.apache.jena.util.iterator.WrappedIterator;
 import org.apache.thrift.TException;
 import org.apache.thrift.TSerializer;
 
@@ -205,12 +207,18 @@ public class CassandraConnection implements Closeable {
 	 *            The keyspace to delete from
 	 */
 	public void deleteTables(String keyspace) {
-		Session session = getSession(keyspace);
+		ExtendedIterator<String> iter = null;
 		for (TableName tbl : getTableList()) {
-			String stmt = String.format("DROP TABLE IF EXISTS %s.%s", keyspace, tbl);
-			LOG.debug(stmt);
-			session.execute(stmt);
+			if (iter == null)
+			{
+				iter = WrappedIterator.create( tbl.getDeleteTableStatements());					
+			}
+			else
+			{
+				iter = iter.andThen( tbl.getDeleteTableStatements() );
+			}
 		}
+		executeUpdateSet( keyspace, iter );
 	}
 
 	/**
@@ -220,9 +228,10 @@ public class CassandraConnection implements Closeable {
 	 *            the keyspace to create the tables in.
 	 */
 	public void createTables(String keyspace) {
+		
 		Session session = getSession(keyspace);
 		for (TableName tbl : getTableList()) {
-			for (String stmt : tbl.getCreateTableStatements(keyspace)) {
+			for (String stmt : tbl.getCreateTableStatements()) {
 				LOG.debug(stmt);
 				session.execute(stmt);
 			}
