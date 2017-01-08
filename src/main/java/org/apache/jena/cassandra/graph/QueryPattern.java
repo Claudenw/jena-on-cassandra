@@ -129,7 +129,7 @@ public class QueryPattern {
 	 * Constructor.
 	 * 
 	 * @param connection
-	 *            The connection ot use.
+	 *            The connection to use.
 	 * @param quad
 	 *            The quad to find.
 	 */
@@ -435,7 +435,7 @@ public class QueryPattern {
 		else 
 		{
 		
-			Iterator<String> queries = doFind(keyspace).mapWith( new Function<Quad,String>(){
+			Iterator<String> statements = doFind(keyspace).mapWith( new Function<Quad,String>(){
 	
 				@Override
 				public String apply(Quad quad) {
@@ -446,7 +446,7 @@ public class QueryPattern {
 						return null;
 					}
 				}}).filterDrop( new FindNull<String>());
-			connection.executeUpdateSet(keyspace, queries);
+			connection.executeUpdateSet(keyspace, statements);
 		
 		}
 
@@ -595,7 +595,8 @@ public class QueryPattern {
 	}
 
 	/**
-	 * Function to convert a Cassandra Row to a Node.
+	 * Function to convert a Cassandra Row to a Node. This assumes that the first value is a
+	 * serialzed node.
 	 *
 	 */
 	public static class RowToNode implements Function<Row, Node> {

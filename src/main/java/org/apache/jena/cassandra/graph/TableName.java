@@ -51,6 +51,7 @@ public class TableName {
 
 	/**
 	 * The number of columns in the primary key.
+	 * 
 	 * @return the number of columns in the primary key.
 	 */
 	public int getPrimaryKeyColumnCount() {
@@ -123,16 +124,16 @@ public class TableName {
 	}
 
 	/**
-	 * Create the tables in the keyspace.
+	 * Get the create table statements.
 	 * 
-	 * @param keyspace
-	 *            The keyspace to create the tables in.
-	 * @return an array of table and index creation strings.
+	 * The first string must complete before the remaining strings are executed.
+
+	 * @return an array of table and index creation statements.
 	 */
 	public String[] getCreateTableStatements() {
-		/* there are 4 statements in a create table statement.
-		 * create the table
-		 * and 3 indexes. 
+		/*
+		 * there are 4 statements in a create table statement. create the table
+		 * and 3 indexes.
 		 */
 		String[] retval = new String[4];
 
@@ -148,18 +149,18 @@ public class TableName {
 		retval[3] = String.format("CREATE INDEX IF NOT EXISTS %1$s_%2$s ON %1$s (%2$s)", this, ColumnName.D);
 		return retval;
 	}
-	
+
 	/**
-	 * Create the tables in the keyspace.
+	 * Get the delete table statements.
 	 * 
-	 * @param keyspace
-	 *            The keyspace to create the tables in.
-	 * @return an array of table and index creation strings.
+	 * These statements will delete the table and the indexes.
+	 * 
+	 * @return an iterator on the table and index delete statements.
 	 */
 	public Iterator<String> getDeleteTableStatements() {
-		/* there are 4 statements in a create table statement.
-		 * create the table
-		 * and 3 indexes. 
+		/*
+		 * there are 4 statements in a create table statement. create the table
+		 * and 3 indexes.
 		 */
 		String[] retval = new String[4];
 

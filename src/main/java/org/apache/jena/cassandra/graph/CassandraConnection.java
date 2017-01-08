@@ -50,7 +50,9 @@ import com.datastax.driver.core.utils.Bytes;
 
 /**
  * 
- * Handles the Cassandra connection and table definitions.
+ * Handles the Cassandra cluster connection and table definitions.
+ * 
+ * This class also manages the sessions for each keyspace.
  * 
  * Tables are identified by ID or name.
  * 
@@ -154,6 +156,10 @@ public class CassandraConnection implements Closeable {
 
 	}
 
+	/**
+	 * Constructor
+	 * @param cluster the cassandra cluster to use.
+	 */
 	public CassandraConnection(Cluster cluster) {
 		this.cluster = cluster;		
 		this.sessions = Collections.synchronizedMap(new HashMap<String,Session>());
@@ -171,6 +177,10 @@ public class CassandraConnection implements Closeable {
 		}
 	}
 	
+	/**
+	 * Create the keyspace in the cluster.
+	 * @param createStmt the statement to execute.
+	 */
 	public void createKeyspace( String createStmt )
 	{
 		cluster.connect().execute(createStmt);
@@ -246,23 +256,33 @@ public class CassandraConnection implements Closeable {
 	 */
 	public void truncateTables(String keyspace) {
 				
-		Iterator<String> queries = CassandraConnection.getTableList().stream().map( new Function<TableName,String>(){
+		Iterator<String> statements = CassandraConnection.getTableList().stream().map( new Function<TableName,String>(){
 			@Override
 			public String apply(TableName t) {
 				return String.format("TRUNCATE %s ;", t.getName());
 			}}).iterator();
-		executeUpdateSet( keyspace, queries );
+		executeUpdateSet( keyspace, statements );
 	}
 	
-	public void executeUpdateSet( String keyspace, Iterator<String> queries )
+	/**
+	 * Perform update statements (no data retrieval) using async calls.  
+	 * 
+	 * Method returns when all
+	 *  the async statements have been executed.  There is no guarantee that the statements
+	 *  will be executed in any particular order.
+	 *  
+	 * @param keyspace The keyspace to execute the commands in.
+	 * @param statements An iterator of queries to execute.
+	 */
+	public void executeUpdateSet( String keyspace, Iterator<String> statements )
 	{
 		Session session = getSession(keyspace);
 		ConcurrentHashMap<Runnable, ResultSetFuture> map = new ConcurrentHashMap<>();
 		ExecutorService executor = Executors.newSingleThreadExecutor();
 		//ForkJoinPool executor = new ForkJoinPool(1);
 		try {
-			while (queries.hasNext()) {
-				String query = queries.next();
+			while (statements.hasNext()) {
+				String query = statements.next();
 
 					Runnable runner = new Runnable() {
 						@Override
@@ -302,6 +322,12 @@ public class CassandraConnection implements Closeable {
 		return tblName;
 	}
 
+	/**
+	 * Execute the query and return the result set.  Log any errors.
+	 * @param keyspace The keyspace to execute the query in.
+	 * @param query The query to execute
+	 * @return The Cassandra ResultSet from the query.
+	 */
 	public ResultSet executeQuery(String keyspace, String query) {
 		if (LOG.isDebugEnabled()) {
 			LOG.debug("executing query: " + query);
@@ -314,14 +340,20 @@ public class CassandraConnection implements Closeable {
 		}
 	}
 
-	public ResultSetFuture executeUpdate(String keyspace, String query) {
+	/**
+	 * Execute a single update statement (no data returned).  Logging is performed as appropriate.
+	 * @param keyspace The keyspace to execute in.
+	 * @param statement the statement to execute.
+	 * @return ResultSetFuture
+	 */
+	public ResultSetFuture executeUpdate(String keyspace, String statement) {
 		if (LOG.isDebugEnabled()) {
-			LOG.debug("executing query: " + query);
+			LOG.debug("executing query: " + statement);
 		}
 		try {
-			return getSession(keyspace).executeAsync(query);
+			return getSession(keyspace).executeAsync(statement);
 		} catch (QueryValidationException e) {
-			LOG.error(String.format("Query Execution issue (%s) while executing: (%s)", e.getMessage(), query), e);
+			LOG.error(String.format("Query Execution issue (%s) while executing: (%s)", e.getMessage(), statement), e);
 			throw e;
 		}
 	}
