@@ -23,33 +23,36 @@ import static org.apache.jena.sparql.util.graph.GraphUtils.getStringValue;
 import org.apache.jena.assembler.Assembler;
 import org.apache.jena.assembler.Mode;
 import org.apache.jena.assembler.assemblers.AssemblerBase;
-import org.apache.jena.assembler.exceptions.AssemblerException;
 import org.apache.jena.cassandra.graph.CassandraConnection;
 import org.apache.jena.cassandra.graph.DatasetGraphCassandra;
-import org.apache.jena.query.ARQ;
+import org.apache.jena.query.Dataset;
 import org.apache.jena.rdf.model.Resource;
 import org.apache.jena.sparql.core.DatasetGraph;
 import org.apache.jena.sparql.core.DatasetImpl;
-import org.apache.jena.sparql.util.Symbol;
 import com.datastax.driver.core.Cluster;
 
-public class CassandraDatasetAssembler extends AssemblerBase implements Assembler{
+/**
+ * An assembler that creates a dataset from a Cassandra Cluster and a
+ * DatasetGraphCassandra.
+ *
+ */
+public class CassandraDatasetAssembler extends AssemblerBase implements Assembler {
 
 	// Make a dataset
-    // [] rdf:type joc:Dataset ;
-    //    joc:useCluster "clusterName" ;
-	//    joc:keyspace "keyspace"
-	
+	// [] rdf:type joc:Dataset ;
+	// joc:useCluster "clusterName" ;
+	// joc:keyspace "keyspace"
+
 	@Override
-	public Object open(Assembler a, Resource root, Mode mode) {
-        String keyspace = getStringValue(root, VocabCassandra.keyspace) ;
-        String clusterName = getStringValue(root, VocabCassandra.useCluster) ;
-       
-        Cluster cluster = CassandraClusterAssembler.getCluster(root, clusterName);
-        
-        CassandraConnection connection = new CassandraConnection( cluster );
-        DatasetGraph dsg = new DatasetGraphCassandra( keyspace, connection );
-        
-       return DatasetImpl.wrap( dsg );             
+	public Dataset open(Assembler a, Resource root, Mode mode) {
+		String keyspace = getStringValue(root, VocabCassandra.keyspace);
+		String clusterName = getStringValue(root, VocabCassandra.useCluster);
+
+		Cluster cluster = CassandraClusterAssembler.getCluster(root, clusterName);
+
+		CassandraConnection connection = new CassandraConnection(cluster);
+		DatasetGraph dsg = new DatasetGraphCassandra(keyspace, connection);
+
+		return DatasetImpl.wrap(dsg);
 	}
 }

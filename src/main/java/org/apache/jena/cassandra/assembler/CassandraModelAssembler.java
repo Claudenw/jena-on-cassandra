@@ -24,43 +24,48 @@ import static org.apache.jena.sparql.util.graph.GraphUtils.getStringValue;
 import org.apache.jena.assembler.Assembler;
 import org.apache.jena.assembler.Mode;
 import org.apache.jena.assembler.assemblers.AssemblerBase;
-import org.apache.jena.assembler.exceptions.AssemblerException;
 import org.apache.jena.cassandra.graph.CassandraConnection;
 import org.apache.jena.cassandra.graph.GraphCassandra;
 import org.apache.jena.graph.Graph;
-import org.apache.jena.query.ARQ;
+import org.apache.jena.rdf.model.Model;
 import org.apache.jena.rdf.model.ModelFactory;
 import org.apache.jena.rdf.model.Resource;
-import org.apache.jena.sparql.util.Symbol;
-
 import com.datastax.driver.core.Cluster;
 
+/**
+ * Assember to construct Models from a Cassandra Cluster and a keyspace.
+ * 
+ * If a graphName is provided it will be used as the model, otherwise the
+ * default graph is used.
+ * 
+ *
+ */
 public class CassandraModelAssembler extends AssemblerBase implements Assembler {
 
 	// Make a model - the default model of the Cassandra dataset
-    // [] rdf:type joc:Graph ;
-    //    joc:useCluster "clusterName" ;
-	//    joc:keyspace "keyspace"
-    
-    // Make a named model.
-    // [] rdf:type joc:Graph ;
-    //    joc:useCluster "clusterName";
-	//    joc:keyspace "keyspace"
-    //    joc:graphName <graphIRI>
-	
+	// [] rdf:type joc:Model ;
+	// joc:useCluster "clusterName" ;
+	// joc:keyspace "keyspace"
+
+	// Make a named model.
+	// [] rdf:type joc:Model ;
+	// joc:useCluster "clusterName";
+	// joc:keyspace "keyspace"
+	// joc:graphName <graphIRI>
+
 	@Override
-	public Object open(Assembler a, Resource root, Mode mode) {
-        String keyspace = getStringValue(root, VocabCassandra.keyspace) ;
-        String clusterName = getStringValue(root, VocabCassandra.useCluster) ;
-        Resource graphName = getResourceValue(root, VocabCassandra.graphName) ;
-        
-        Cluster cluster = CassandraClusterAssembler.getCluster( root, clusterName );
-        
-        CassandraConnection connection = new CassandraConnection( cluster );
-        
-        Graph g = new GraphCassandra( (graphName==null?null:graphName.asNode()), keyspace, connection );
-        return ModelFactory.createModelForGraph(g);
-        
+	public Model open(Assembler a, Resource root, Mode mode) {
+		String keyspace = getStringValue(root, VocabCassandra.keyspace);
+		String clusterName = getStringValue(root, VocabCassandra.useCluster);
+		Resource graphName = getResourceValue(root, VocabCassandra.graphName);
+
+		Cluster cluster = CassandraClusterAssembler.getCluster(root, clusterName);
+
+		CassandraConnection connection = new CassandraConnection(cluster);
+
+		Graph g = new GraphCassandra((graphName == null ? null : graphName.asNode()), keyspace, connection);
+		return ModelFactory.createModelForGraph(g);
+
 	}
 
 }
