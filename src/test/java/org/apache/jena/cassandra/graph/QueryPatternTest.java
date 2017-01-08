@@ -39,7 +39,7 @@ import static org.mockito.Mockito.*;
 /**
  * Test the query pattern generator.
  * 
- * Where specific tests are in the QueryInfoTest.
+ * "Where" specific tests are in the QueryInfoTest.
  *
  */
 public class QueryPatternTest {
@@ -110,7 +110,7 @@ public class QueryPatternTest {
 		Quad q = new Quad(graph, subject, predicate, object);
 		QueryPattern qp = new QueryPattern(connection, q);
 		QueryPattern.QueryInfo qi = qp.getQueryInfo();
-		QueryPattern.Query query = qp.getFindQuery( qi);
+		QueryPattern.Query query = qp.getFindQuery(qi);
 		;
 		String s = query.text.toString();
 		assertTrue("table missing", s.contains("SPOG"));
@@ -126,7 +126,7 @@ public class QueryPatternTest {
 
 		QueryPattern.QueryInfo qi = qp.getQueryInfo();
 		qi.suffix = "limit 1";
-		QueryPattern.Query query = qp.getFindQuery( qi);
+		QueryPattern.Query query = qp.getFindQuery(qi);
 		String s = query.text.toString();
 		assertTrue("table missing", s.contains("SPOG"));
 		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
@@ -142,7 +142,7 @@ public class QueryPatternTest {
 		QueryPattern qp = new QueryPattern(connection, q);
 		QueryPattern.QueryInfo qi = qp.getQueryInfo();
 		qi.extraWhere = "something=Something";
-		QueryPattern.Query query = qp.getFindQuery( qi);
+		QueryPattern.Query query = qp.getFindQuery(qi);
 		String s = query.text.toString();
 		assertTrue("table missing", s.contains("SPOG"));
 		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
@@ -158,7 +158,7 @@ public class QueryPatternTest {
 		QueryPattern.QueryInfo qi = qp.getQueryInfo();
 		qi.extraWhere = "something=Something";
 		qi.suffix = "limit 1";
-		QueryPattern.Query query = qp.getFindQuery( qi);
+		QueryPattern.Query query = qp.getFindQuery(qi);
 		String s = query.text.toString();
 		assertTrue("table missing", s.contains("SPOG"));
 		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
@@ -178,7 +178,7 @@ public class QueryPatternTest {
 		qi.tableQuad = new Quad(q.getGraph(), q.getSubject(), q.getPredicate(), Node.ANY);
 		qi.values.remove(ColumnName.O);
 		qi.tableName = CassandraConnection.getTable(CassandraConnection.getId(qi.tableQuad));
-		QueryPattern.Query query = qp.getFindQuery( qi);
+		QueryPattern.Query query = qp.getFindQuery(qi);
 		String s = query.text.toString();
 		assertTrue("table missing", s.contains("GSPO"));
 		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
@@ -196,7 +196,7 @@ public class QueryPatternTest {
 		qi.tableQuad = new Quad(q.getGraph(), q.getSubject(), q.getPredicate(), Node.ANY);
 		qi.values.remove(ColumnName.O);
 		qi.tableName = CassandraConnection.getTable(CassandraConnection.getId(qi.tableQuad));
-		QueryPattern.Query query = qp.getFindQuery( qi);
+		QueryPattern.Query query = qp.getFindQuery(qi);
 		String s = query.text.toString();
 		assertTrue("table missing", s.contains("GSPO"));
 		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
@@ -213,7 +213,7 @@ public class QueryPatternTest {
 		qi.tableQuad = new Quad(q.getGraph(), q.getSubject(), q.getPredicate(), Node.ANY);
 		qi.values.remove(ColumnName.O);
 		qi.tableName = CassandraConnection.getTable(CassandraConnection.getId(qi.tableQuad));
-		QueryPattern.Query query = qp.getFindQuery( qi);
+		QueryPattern.Query query = qp.getFindQuery(qi);
 		String s = query.text.toString();
 		assertTrue("table missing", s.contains("GSPO"));
 		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
@@ -230,7 +230,7 @@ public class QueryPatternTest {
 		qi.tableQuad = new Quad(q.getGraph(), q.getSubject(), q.getPredicate(), Node.ANY);
 		qi.values.remove(ColumnName.O);
 		qi.tableName = CassandraConnection.getTable(CassandraConnection.getId(qi.tableQuad));
-		QueryPattern.Query query = qp.getFindQuery( qi);
+		QueryPattern.Query query = qp.getFindQuery(qi);
 		String s = query.text.toString();
 		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
 		assertTrue("table missing", s.contains("PGOS"));
@@ -247,7 +247,7 @@ public class QueryPatternTest {
 		qi.tableQuad = new Quad(q.getGraph(), q.getSubject(), q.getPredicate(), Node.ANY);
 		qi.values.remove(ColumnName.O);
 		qi.tableName = CassandraConnection.getTable(CassandraConnection.getId(qi.tableQuad));
-		QueryPattern.Query query = qp.getFindQuery( qi);
+		QueryPattern.Query query = qp.getFindQuery(qi);
 		String s = query.text.toString();
 		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
 		assertTrue("table missing", s.contains("SPOG"));
@@ -264,7 +264,7 @@ public class QueryPatternTest {
 		qi.tableQuad = new Quad(q.getGraph(), q.getSubject(), q.getPredicate(), Node.ANY);
 		qi.values.remove(ColumnName.O);
 		qi.tableName = CassandraConnection.getTable(CassandraConnection.getId(qi.tableQuad));
-		QueryPattern.Query query = qp.getFindQuery( qi);
+		QueryPattern.Query query = qp.getFindQuery(qi);
 		String s = query.text.toString();
 		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
 		assertTrue("table missing", s.contains("GSPO"));
@@ -281,7 +281,7 @@ public class QueryPatternTest {
 		qi.tableQuad = new Quad(q.getGraph(), q.getSubject(), q.getPredicate(), Node.ANY);
 		qi.values.remove(ColumnName.O);
 		qi.tableName = CassandraConnection.getTable(CassandraConnection.getId(qi.tableQuad));
-		QueryPattern.Query query = qp.getFindQuery( qi);
+		QueryPattern.Query query = qp.getFindQuery(qi);
 		String s = query.text.toString();
 		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
 		assertTrue("table missing", s.contains("SPOG"));
@@ -298,7 +298,7 @@ public class QueryPatternTest {
 		qi.tableQuad = new Quad(q.getGraph(), q.getSubject(), q.getPredicate(), Node.ANY);
 		qi.values.remove(ColumnName.O);
 		qi.tableName = CassandraConnection.getTable(CassandraConnection.getId(qi.tableQuad));
-		QueryPattern.Query query = qp.getFindQuery( qi);
+		QueryPattern.Query query = qp.getFindQuery(qi);
 		String s = query.text.toString();
 		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
 		assertTrue("table missing", s.contains("PGOS"));
@@ -315,7 +315,7 @@ public class QueryPatternTest {
 		qi.tableQuad = new Quad(q.getGraph(), q.getSubject(), q.getPredicate(), Node.ANY);
 		qi.values.remove(ColumnName.O);
 		qi.tableName = CassandraConnection.getTable(CassandraConnection.getId(qi.tableQuad));
-		QueryPattern.Query query = qp.getFindQuery( qi);
+		QueryPattern.Query query = qp.getFindQuery(qi);
 		String s = query.text.toString();
 		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
 		assertTrue("table missing", s.contains("GSPO"));
@@ -328,7 +328,7 @@ public class QueryPatternTest {
 		Quad q = new Quad(graph, subject, predicate, Node.ANY);
 		QueryPattern qp = new QueryPattern(connection, q);
 		QueryPattern.QueryInfo qi = qp.getQueryInfo();
-		QueryPattern.Query query = qp.getFindQuery( qi);
+		QueryPattern.Query query = qp.getFindQuery(qi);
 		String s = query.text.toString();
 		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
 		assertTrue("table missing", s.contains("GSPO"));
@@ -341,7 +341,7 @@ public class QueryPatternTest {
 		Quad q = new Quad(graph, subject, Node.ANY, object);
 		QueryPattern qp = new QueryPattern(connection, q);
 		QueryPattern.QueryInfo qi = qp.getQueryInfo();
-		QueryPattern.Query query = qp.getFindQuery( qi);
+		QueryPattern.Query query = qp.getFindQuery(qi);
 		String s = query.text.toString();
 		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
 		assertTrue("table missing", s.contains("OSGP"));
@@ -354,7 +354,7 @@ public class QueryPatternTest {
 		Quad q = new Quad(graph, Node.ANY, predicate, object);
 		QueryPattern qp = new QueryPattern(connection, q);
 		QueryPattern.QueryInfo qi = qp.getQueryInfo();
-		QueryPattern.Query query = qp.getFindQuery( qi);
+		QueryPattern.Query query = qp.getFindQuery(qi);
 		String s = query.text.toString();
 		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
 		assertTrue("table missing", s.contains("PGOS"));
@@ -367,7 +367,7 @@ public class QueryPatternTest {
 		Quad q = new Quad(Node.ANY, subject, predicate, object);
 		QueryPattern qp = new QueryPattern(connection, q);
 		QueryPattern.QueryInfo qi = qp.getQueryInfo();
-		QueryPattern.Query query = qp.getFindQuery( qi);
+		QueryPattern.Query query = qp.getFindQuery(qi);
 		String s = query.text.toString();
 		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
 		assertTrue("table missing", s.contains("SPOG"));
@@ -380,7 +380,7 @@ public class QueryPatternTest {
 		Quad q = new Quad(graph, subject, Node.ANY, Node.ANY);
 		QueryPattern qp = new QueryPattern(connection, q);
 		QueryPattern.QueryInfo qi = qp.getQueryInfo();
-		QueryPattern.Query query = qp.getFindQuery( qi);
+		QueryPattern.Query query = qp.getFindQuery(qi);
 		String s = query.text.toString();
 		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
 		assertTrue("table missing", s.contains("GSPO"));
@@ -393,7 +393,7 @@ public class QueryPatternTest {
 		Quad q = new Quad(graph, Node.ANY, predicate, Node.ANY);
 		QueryPattern qp = new QueryPattern(connection, q);
 		QueryPattern.QueryInfo qi = qp.getQueryInfo();
-		QueryPattern.Query query = qp.getFindQuery( qi);
+		QueryPattern.Query query = qp.getFindQuery(qi);
 		String s = query.text.toString();
 		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
 		assertTrue("table missing", s.contains("PGOS"));
@@ -406,7 +406,7 @@ public class QueryPatternTest {
 		Quad q = new Quad(Node.ANY, subject, predicate, Node.ANY);
 		QueryPattern qp = new QueryPattern(connection, q);
 		QueryPattern.QueryInfo qi = qp.getQueryInfo();
-		QueryPattern.Query query = qp.getFindQuery( qi);
+		QueryPattern.Query query = qp.getFindQuery(qi);
 		String s = query.text.toString();
 		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
 		assertTrue("table missing", s.contains("SPOG"));
@@ -419,7 +419,7 @@ public class QueryPatternTest {
 		Quad q = new Quad(graph, Node.ANY, Node.ANY, object);
 		QueryPattern qp = new QueryPattern(connection, q);
 		QueryPattern.QueryInfo qi = qp.getQueryInfo();
-		QueryPattern.Query query = qp.getFindQuery( qi);
+		QueryPattern.Query query = qp.getFindQuery(qi);
 		String s = query.text.toString();
 		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
 		assertTrue("table missing", s.contains("OSGP"));
@@ -432,7 +432,7 @@ public class QueryPatternTest {
 		Quad q = new Quad(Node.ANY, subject, Node.ANY, object);
 		QueryPattern qp = new QueryPattern(connection, q);
 		QueryPattern.QueryInfo qi = qp.getQueryInfo();
-		QueryPattern.Query query = qp.getFindQuery( qi);
+		QueryPattern.Query query = qp.getFindQuery(qi);
 		String s = query.text.toString();
 		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
 		assertTrue("table missing", s.contains("OSGP"));
@@ -445,7 +445,7 @@ public class QueryPatternTest {
 		Quad q = new Quad(Node.ANY, Node.ANY, predicate, object);
 		QueryPattern qp = new QueryPattern(connection, q);
 		QueryPattern.QueryInfo qi = qp.getQueryInfo();
-		QueryPattern.Query query = qp.getFindQuery( qi);
+		QueryPattern.Query query = qp.getFindQuery(qi);
 		String s = query.text.toString();
 		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
 		assertTrue("table missing", s.contains("PGOS"));
@@ -458,7 +458,7 @@ public class QueryPatternTest {
 		Quad q = new Quad(Node.ANY, Node.ANY, Node.ANY, object);
 		QueryPattern qp = new QueryPattern(connection, q);
 		QueryPattern.QueryInfo qi = qp.getQueryInfo();
-		QueryPattern.Query query = qp.getFindQuery( qi);
+		QueryPattern.Query query = qp.getFindQuery(qi);
 		String s = query.text.toString();
 		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
 		assertTrue("table missing", s.contains("OSGP"));
@@ -471,7 +471,7 @@ public class QueryPatternTest {
 		Quad q = new Quad(Node.ANY, Node.ANY, predicate, Node.ANY);
 		QueryPattern qp = new QueryPattern(connection, q);
 		QueryPattern.QueryInfo qi = qp.getQueryInfo();
-		QueryPattern.Query query = qp.getFindQuery( qi);
+		QueryPattern.Query query = qp.getFindQuery(qi);
 		String s = query.text.toString();
 
 		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
@@ -485,7 +485,7 @@ public class QueryPatternTest {
 		Quad q = new Quad(Node.ANY, subject, Node.ANY, Node.ANY);
 		QueryPattern qp = new QueryPattern(connection, q);
 		QueryPattern.QueryInfo qi = qp.getQueryInfo();
-		QueryPattern.Query query = qp.getFindQuery( qi);
+		QueryPattern.Query query = qp.getFindQuery(qi);
 		String s = query.text.toString();
 		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
 		assertTrue("table missing", s.contains("SPOG"));
@@ -498,7 +498,7 @@ public class QueryPatternTest {
 		Quad q = new Quad(graph, Node.ANY, Node.ANY, Node.ANY);
 		QueryPattern qp = new QueryPattern(connection, q);
 		QueryPattern.QueryInfo qi = qp.getQueryInfo();
-		QueryPattern.Query query = qp.getFindQuery( qi);
+		QueryPattern.Query query = qp.getFindQuery(qi);
 		String s = query.text.toString();
 		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
 		assertTrue("table missing", s.contains("GSPO"));
@@ -511,7 +511,7 @@ public class QueryPatternTest {
 		Quad q = new Quad(Node.ANY, Node.ANY, Node.ANY, Node.ANY);
 		QueryPattern qp = new QueryPattern(connection, q);
 		QueryPattern.QueryInfo qi = qp.getQueryInfo();
-		QueryPattern.Query query = qp.getFindQuery( qi);
+		QueryPattern.Query query = qp.getFindQuery(qi);
 		String s = query.text.toString();
 		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
 		assertTrue("table missing", s.contains("GSPO"));
@@ -528,7 +528,7 @@ public class QueryPatternTest {
 		qi.tableQuad = new Quad(q.getGraph(), q.getSubject(), q.getPredicate(), Node.ANY);
 		qi.values.remove(ColumnName.O);
 		qi.tableName = CassandraConnection.getTable(CassandraConnection.getId(qi.tableQuad));
-		QueryPattern.Query query = qp.getFindQuery( qi);
+		QueryPattern.Query query = qp.getFindQuery(qi);
 		String s = query.text.toString();
 		assertTrue("table missing", s.contains("GSPO"));
 		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
@@ -542,7 +542,7 @@ public class QueryPatternTest {
 		QueryPattern qp = new QueryPattern(connection, q);
 		QueryPattern.QueryInfo qi = qp.getQueryInfo();
 		qi.extraValueFilter = Arrays.asList(ColumnName.L);
-		QueryPattern.Query query = qp.getFindQuery( qi);
+		QueryPattern.Query query = qp.getFindQuery(qi);
 		String s = query.text.toString();
 		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
 		assertTrue("table missing", s.contains("PGOS"));
@@ -556,7 +556,7 @@ public class QueryPatternTest {
 		QueryPattern qp = new QueryPattern(connection, q);
 		QueryPattern.QueryInfo qi = qp.getQueryInfo();
 		qi.extraValueFilter = Arrays.asList(ColumnName.L);
-		QueryPattern.Query query = qp.getFindQuery( qi);
+		QueryPattern.Query query = qp.getFindQuery(qi);
 		String s = query.text.toString();
 		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
 		assertTrue("table missing", s.contains("SPOG"));
@@ -573,7 +573,7 @@ public class QueryPatternTest {
 		qi.tableQuad = new Quad(q.getGraph(), q.getSubject(), q.getPredicate(), Node.ANY);
 		qi.values.remove(ColumnName.O);
 		qi.tableName = CassandraConnection.getTable(CassandraConnection.getId(qi.tableQuad));
-		QueryPattern.Query query = qp.getFindQuery( qi);
+		QueryPattern.Query query = qp.getFindQuery(qi);
 		String s = query.text.toString();
 		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
 		assertTrue("table missing", s.contains("GSPO"));
@@ -590,7 +590,7 @@ public class QueryPatternTest {
 		qi.tableQuad = new Quad(q.getGraph(), q.getSubject(), q.getPredicate(), Node.ANY);
 		qi.values.remove(ColumnName.O);
 		qi.tableName = CassandraConnection.getTable(CassandraConnection.getId(qi.tableQuad));
-		QueryPattern.Query query = qp.getFindQuery( qi);
+		QueryPattern.Query query = qp.getFindQuery(qi);
 		String s = query.text.toString();
 		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
 		assertTrue("table missing", s.contains("SPOG"));
@@ -604,7 +604,7 @@ public class QueryPatternTest {
 		QueryPattern qp = new QueryPattern(connection, q);
 		QueryPattern.QueryInfo qi = qp.getQueryInfo();
 		qi.extraValueFilter = Arrays.asList(ColumnName.L);
-		QueryPattern.Query query = qp.getFindQuery( qi);
+		QueryPattern.Query query = qp.getFindQuery(qi);
 		String s = query.text.toString();
 		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
 		assertTrue("table missing", s.contains("PGOS"));
@@ -621,7 +621,7 @@ public class QueryPatternTest {
 		qi.tableQuad = new Quad(q.getGraph(), q.getSubject(), q.getPredicate(), Node.ANY);
 		qi.values.remove(ColumnName.O);
 		qi.tableName = CassandraConnection.getTable(CassandraConnection.getId(qi.tableQuad));
-		QueryPattern.Query query = qp.getFindQuery( qi);
+		QueryPattern.Query query = qp.getFindQuery(qi);
 		String s = query.text.toString();
 		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
 		assertTrue("table missing", s.contains("GSPO"));
@@ -638,7 +638,7 @@ public class QueryPatternTest {
 		qi.tableQuad = new Quad(q.getGraph(), q.getSubject(), q.getPredicate(), Node.ANY);
 		qi.values.remove(ColumnName.O);
 		qi.tableName = CassandraConnection.getTable(CassandraConnection.getId(qi.tableQuad));
-		QueryPattern.Query query = qp.getFindQuery( qi);
+		QueryPattern.Query query = qp.getFindQuery(qi);
 		String s = query.text.toString();
 		assertTrue("table missing", s.contains("GSPO"));
 		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
@@ -652,7 +652,7 @@ public class QueryPatternTest {
 		QueryPattern qp = new QueryPattern(connection, q);
 		QueryPattern.QueryInfo qi = qp.getQueryInfo();
 		qi.extraValueFilter = Arrays.asList(ColumnName.L);
-		QueryPattern.Query query = qp.getFindQuery( qi);
+		QueryPattern.Query query = qp.getFindQuery(qi);
 		String s = query.text.toString();
 		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
 		assertTrue("table missing", s.contains("PGOS"));
@@ -666,7 +666,7 @@ public class QueryPatternTest {
 		QueryPattern qp = new QueryPattern(connection, q);
 		QueryPattern.QueryInfo qi = qp.getQueryInfo();
 		qi.extraValueFilter = Arrays.asList(ColumnName.L);
-		QueryPattern.Query query = qp.getFindQuery( qi);
+		QueryPattern.Query query = qp.getFindQuery(qi);
 		String s = query.text.toString();
 		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
 		assertTrue("table missing", s.contains("SPOG"));
@@ -683,7 +683,7 @@ public class QueryPatternTest {
 		qi.tableQuad = new Quad(q.getGraph(), q.getSubject(), q.getPredicate(), Node.ANY);
 		qi.values.remove(ColumnName.O);
 		qi.tableName = CassandraConnection.getTable(CassandraConnection.getId(qi.tableQuad));
-		QueryPattern.Query query = qp.getFindQuery( qi);
+		QueryPattern.Query query = qp.getFindQuery(qi);
 		String s = query.text.toString();
 		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
 		assertTrue("table missing", s.contains("GSPO"));
@@ -700,7 +700,7 @@ public class QueryPatternTest {
 		qi.tableQuad = new Quad(q.getGraph(), q.getSubject(), q.getPredicate(), Node.ANY);
 		qi.values.remove(ColumnName.O);
 		qi.tableName = CassandraConnection.getTable(CassandraConnection.getId(qi.tableQuad));
-		QueryPattern.Query query = qp.getFindQuery( qi);
+		QueryPattern.Query query = qp.getFindQuery(qi);
 		String s = query.text.toString();
 		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
 		assertTrue("table missing", s.contains("SPOG"));
@@ -714,7 +714,7 @@ public class QueryPatternTest {
 		QueryPattern qp = new QueryPattern(connection, q);
 		QueryPattern.QueryInfo qi = qp.getQueryInfo();
 		qi.extraValueFilter = Arrays.asList(ColumnName.L);
-		QueryPattern.Query query = qp.getFindQuery( qi);
+		QueryPattern.Query query = qp.getFindQuery(qi);
 		String s = query.text.toString();
 		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
 		assertTrue("table missing", s.contains("PGOS"));
@@ -731,7 +731,7 @@ public class QueryPatternTest {
 		qi.tableQuad = new Quad(q.getGraph(), q.getSubject(), q.getPredicate(), Node.ANY);
 		qi.values.remove(ColumnName.O);
 		qi.tableName = CassandraConnection.getTable(CassandraConnection.getId(qi.tableQuad));
-		QueryPattern.Query query = qp.getFindQuery( qi);
+		QueryPattern.Query query = qp.getFindQuery(qi);
 		String s = query.text.toString();
 		assertTrue("Standard query columns missing", s.contains("SELECT " + SELECT_COLUMNS + " FROM "));
 		assertTrue("table missing", s.contains("GSPO"));
@@ -756,27 +756,27 @@ public class QueryPatternTest {
 		Quad q = new Quad(graph, subject, predicate, node42);
 		QueryPattern qp = new QueryPattern(connection, q);
 		Iterator<String> iter = qp.getInsertStatement();
-		assertTrue( iter.hasNext() );
+		assertTrue(iter.hasNext());
 		String line = iter.next();
 		assertTrue("table missing", line.contains("SPOG"));
 		verifyInsertNumericValues(line);
 
-		assertTrue( iter.hasNext() );
+		assertTrue(iter.hasNext());
 		line = iter.next();
 		assertTrue("table missing", line.contains("PGOS"));
 		verifyInsertNumericValues(line);
 
-		assertTrue( iter.hasNext() );
+		assertTrue(iter.hasNext());
 		line = iter.next();
 		assertTrue("table missing", line.contains("OSGP"));
 		verifyInsertNumericValues(line);
 
-		assertTrue( iter.hasNext() );
+		assertTrue(iter.hasNext());
 		line = iter.next();
 		assertTrue("table missing", line.contains("GSPO"));
 		verifyInsertNumericValues(line);
 
-		assertFalse( iter.hasNext() );
+		assertFalse(iter.hasNext());
 	}
 
 	private void verifyInsertLitValues(String line) {
@@ -796,27 +796,27 @@ public class QueryPatternTest {
 		QueryPattern qp = new QueryPattern(connection, q);
 		Iterator<String> iter = qp.getInsertStatement();
 
-		assertTrue( iter.hasNext() );
+		assertTrue(iter.hasNext());
 		String line = iter.next();
 		assertTrue("table missing", line.contains("SPOG"));
 		verifyInsertLitValues(line);
 
-		assertTrue( iter.hasNext() );
+		assertTrue(iter.hasNext());
 		line = iter.next();
 		assertTrue("table missing", line.contains("PGOS"));
 		verifyInsertLitValues(line);
 
-		assertTrue( iter.hasNext() );
+		assertTrue(iter.hasNext());
 		line = iter.next();
 		assertTrue("table missing", line.contains("OSGP"));
 		verifyInsertLitValues(line);
 
-		assertTrue( iter.hasNext() );
+		assertTrue(iter.hasNext());
 		line = iter.next();
 		assertTrue("table missing", line.contains("GSPO"));
 		verifyInsertLitValues(line);
-		
-		assertFalse( iter.hasNext() );
+
+		assertFalse(iter.hasNext());
 
 	}
 
@@ -838,27 +838,27 @@ public class QueryPatternTest {
 		QueryPattern qp = new QueryPattern(connection, q);
 		Iterator<String> iter = qp.getInsertStatement();
 
-		assertTrue( iter.hasNext() );
+		assertTrue(iter.hasNext());
 		String line = iter.next();
 		assertTrue("table missing", line.contains("SPOG"));
 		verifyInsertLitLangValues(line);
 
-		assertTrue( iter.hasNext() );
+		assertTrue(iter.hasNext());
 		line = iter.next();
 		assertTrue("table missing", line.contains("PGOS"));
 		verifyInsertLitLangValues(line);
 
-		assertTrue( iter.hasNext() );
+		assertTrue(iter.hasNext());
 		line = iter.next();
 		assertTrue("table missing", line.contains("OSGP"));
 		verifyInsertLitLangValues(line);
 
-		assertTrue( iter.hasNext() );
+		assertTrue(iter.hasNext());
 		line = iter.next();
 		assertTrue("table missing", line.contains("GSPO"));
 		verifyInsertLitLangValues(line);
 
-		assertFalse( iter.hasNext() );
+		assertFalse(iter.hasNext());
 
 	}
 
@@ -876,34 +876,34 @@ public class QueryPatternTest {
 		QueryPattern qp = new QueryPattern(connection, q);
 		Iterator<String> iter = qp.getInsertStatement();
 
-		assertTrue( iter.hasNext() );
+		assertTrue(iter.hasNext());
 		String line = iter.next();
 		assertTrue("table missing", line.contains("SPOG"));
 		verifyInsertObjectValues(line);
 
-		assertTrue( iter.hasNext() );
+		assertTrue(iter.hasNext());
 		line = iter.next();
 		assertTrue("table missing", line.contains("PGOS"));
 		verifyInsertObjectValues(line);
 
-		assertTrue( iter.hasNext() );
+		assertTrue(iter.hasNext());
 		line = iter.next();
 		assertTrue("table missing", line.contains("OSGP"));
 		verifyInsertObjectValues(line);
 
-		assertTrue( iter.hasNext() );
+		assertTrue(iter.hasNext());
 		line = iter.next();
 		assertTrue("table missing", line.contains("GSPO"));
 		verifyInsertObjectValues(line);
 
-		assertFalse( iter.hasNext());
+		assertFalse(iter.hasNext());
 	}
 
 	@Test
 	public void deleteObjectTest() throws TException {
 		Quad q = new Quad(graph, subject, predicate, object);
 		QueryPattern qp = new QueryPattern(connection, q);
-		String s = qp.getDeleteStatement( q);
+		String s = qp.getDeleteStatement(q);
 		String[] lines = s.split("\n");
 		assertEquals(6, lines.length);
 		assertEquals("BEGIN BATCH", lines[0]);
@@ -923,7 +923,7 @@ public class QueryPatternTest {
 	public void deleteNumTest() throws TException {
 		Quad q = new Quad(graph, subject, predicate, node42);
 		QueryPattern qp = new QueryPattern(connection, q);
-		String s = qp.getDeleteStatement( q);
+		String s = qp.getDeleteStatement(q);
 		String[] lines = s.split("\n");
 		assertEquals(6, lines.length);
 		assertEquals("BEGIN BATCH", lines[0]);
@@ -943,7 +943,7 @@ public class QueryPatternTest {
 	public void deleteLitTest() throws TException {
 		Quad q = new Quad(graph, subject, predicate, nodeLit);
 		QueryPattern qp = new QueryPattern(connection, q);
-		String s = qp.getDeleteStatement( q);
+		String s = qp.getDeleteStatement(q);
 		String[] lines = s.split("\n");
 		assertEquals(6, lines.length);
 		assertEquals("BEGIN BATCH", lines[0]);
@@ -963,7 +963,7 @@ public class QueryPatternTest {
 	public void deleteLitLangTest() throws TException {
 		Quad q = new Quad(graph, subject, predicate, nodeLitLang);
 		QueryPattern qp = new QueryPattern(connection, q);
-		String s = qp.getDeleteStatement( q);
+		String s = qp.getDeleteStatement(q);
 		String[] lines = s.split("\n");
 		assertEquals(6, lines.length);
 		assertEquals("BEGIN BATCH", lines[0]);

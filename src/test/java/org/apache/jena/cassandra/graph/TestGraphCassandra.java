@@ -35,6 +35,10 @@ import org.xenei.junit.contract.ContractSuite;
 import org.xenei.junit.contract.IProducer;
 import org.xenei.junit.contract.Contract.Inject;
 
+/**
+ * Contract test suite for the Cassandra graph implementation.
+ *
+ */
 @RunWith(ContractSuite.class)
 @ContractImpl(GraphCassandra.class)
 public class TestGraphCassandra {

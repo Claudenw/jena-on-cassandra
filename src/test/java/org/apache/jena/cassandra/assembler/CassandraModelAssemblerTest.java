@@ -34,45 +34,44 @@ import org.junit.Test;
 
 import com.datastax.driver.core.Cluster;
 
+/**
+ * Model Assembler test code.
+ *
+ */
 public class CassandraModelAssemblerTest {
-	
-private CassandraModelAssembler assembler;
-private URL url;
-private Model model;
 
+	private CassandraModelAssembler assembler;
+	private URL url;
+	private Model model;
 
-	
 	@Before
 	public void before() throws IOException {
 		assembler = new CassandraModelAssembler();
-		url = Thread.currentThread().getContextClassLoader().getResource( "assembler/model.ttl");
+		url = Thread.currentThread().getContextClassLoader().getResource("assembler/model.ttl");
 		model = ModelFactory.createDefaultModel();
-		model.read( url.toString() );
+		model.read(url.toString());
 	}
-	
+
 	@Test
-	public void testRead() throws UnknownHostException
-	{
-		Cluster cluster =  Cluster.builder().addContactPoint("localhost").build();
-        Symbol symbol = Symbol.create(String.format( "%s/%s", VocabCassandra.Cluster.getURI(),
-        		"Test Cluster")) ;
-        ARQ.getContext().set(symbol, cluster);
-        
-		Object result = assembler.open( model.createResource( "http://example.com/model"));
-		assertTrue( result instanceof Model);
-		
+	public void testRead() throws UnknownHostException {
+		Cluster cluster = Cluster.builder().addContactPoint("localhost").build();
+		Symbol symbol = Symbol.create(String.format("%s/%s", VocabCassandra.Cluster.getURI(), "Test Cluster"));
+		ARQ.getContext().set(symbol, cluster);
+
+		Object result = assembler.open(model.createResource("http://example.com/model"));
+		assertTrue(result instanceof Model);
+
 	}
-	
+
 	@Test
-	public void testReadFromFile() throws UnknownHostException
-	{
+	public void testReadFromFile() throws UnknownHostException {
 		VocabCassandra.init();
-		Model model = AssemblerUtils.readAssemblerFile( url.toString() ); 
-		
-		Object result = Assembler.general.open(model.createResource( "http://example.com/model"));
-		        
-		assertTrue( result instanceof Model);
-		
+		Model model = AssemblerUtils.readAssemblerFile(url.toString());
+
+		Object result = Assembler.general.open(model.createResource("http://example.com/model"));
+
+		assertTrue(result instanceof Model);
+
 	}
 
 }

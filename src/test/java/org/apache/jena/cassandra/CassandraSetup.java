@@ -19,19 +19,15 @@
 package org.apache.jena.cassandra;
 
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.URL;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.service.CassandraDaemon;
 import org.apache.commons.io.IOUtils;
@@ -39,10 +35,7 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.jena.cassandra.assembler.CassandraClusterAssembler;
 import org.apache.jena.ext.com.google.common.io.Files;
-import org.apache.thrift.transport.TTransportException;
-
 import com.datastax.driver.core.Cluster;
-
 
 /**
  * A class to properly setup the testing Cassandra instance.
@@ -61,115 +54,110 @@ public class CassandraSetup {
 	private final static String YAML_FMT = "%n%s: %s%n";
 	private Cluster cluster;
 
+	/**
+	 * Constructor.
+	 * 
+	 * @throws IOException
+	 *             on IO error
+	 * @throws InterruptedException
+	 *             if initialization is interrupted.
+	 */
 	public CassandraSetup() throws IOException, InterruptedException {
 		setupCassandraDaemon();
-		cluster = CassandraClusterAssembler.getCluster("testing", "localhost", sslStoragePort );
+		cluster = CassandraClusterAssembler.getCluster("testing", "localhost", sslStoragePort);
 	}
-	
+
+	/**
+	 * Get the cluster for this setup.
+	 * 
+	 * @return the cluster.
+	 */
 	public Cluster getCluster() {
 		return cluster;
 	}
-	
-	private void setupCassandraDaemon() throws IOException, InterruptedException {
-		if (cassandraDaemon != null)
-		{
-			String portStr[] = System.getProperty("CassandraSetup_Ports").split(",");
-			storagePort = Integer.valueOf( portStr[0]);
-			sslStoragePort = Integer.valueOf( portStr[1]);
-			nativePort = Integer.valueOf( portStr[2]);	
-			tempDir = new File( System.getProperty("CassandraSetup_Dir") );
-			LOG.info( String.format("Cassandra dir: %s storage:%s ssl:%s native:%s", tempDir, storagePort, sslStoragePort, nativePort));
-			LOG.info( "Cassandra already running.");
-		}
-		else {
-
-		tempDir = Files.createTempDir();
-		File storage = new File(tempDir, "storage");
-		storage.mkdir();
-		System.setProperty("cassandra.storagedir", tempDir.toString());
-
-		File yaml = new File(tempDir, "cassandra.yaml");
-		URL url = CassandraSetup.class.getClassLoader().getResource("cassandraTest.yaml");
-		FileOutputStream yamlOut = new FileOutputStream(yaml);
-		IOUtils.copy(url.openStream(), yamlOut);
-
-		int[] ports = findFreePorts(3);
-		storagePort = ports[0];
-		yamlOut.write(String.format(YAML_FMT, "storage_port", storagePort).getBytes());
-
-		sslStoragePort = ports[1];
-		yamlOut.write(String.format(YAML_FMT, "ssl_storage_port", sslStoragePort).getBytes());
-
-		nativePort = ports[2];
-		yamlOut.write(String.format(YAML_FMT, "native_transport_port", sslStoragePort).getBytes());
-
-		yamlOut.flush();
-		yamlOut.close();
-		System.setProperty("cassandra.config", yaml.toURI().toString());
-		System.setProperty("CassandraSetup_Ports", String.format( "%s,%s,%s", storagePort,sslStoragePort,nativePort));
-		System.setProperty("CassandraSetup_Dir", tempDir.toString());
-
-		LOG.info( String.format("Cassandra dir: %s storage:%s ssl:%s native:%s", tempDir, storagePort, sslStoragePort, nativePort));
-		
-		CountDownLatch latch = new CountDownLatch(1);
-		ExecutorService executor = Executors.newSingleThreadExecutor();
-		executor.execute( new Runnable() {
-
-            @Override
-            public void run() {
-                cassandraDaemon = new CassandraDaemon(true);
-                makeDirsIfNotExist();
-                cassandraDaemon.activate();
-                latch.countDown();
-                Runtime.getRuntime().addShutdownHook(new Thread(new Runnable() {
-                    @Override
-                    public void run() {
-                        cassandraDaemon.deactivate();
-                        if (tempDir != null)
-						{
-							FileUtils.deleteRecursive(tempDir);
-						}
-                        LOG.warn( "Cassandra stopped");
-                }}));
-            }
-        });
-		
-		LOG.info( "Waiting for Cassandra to start");
-		latch.await();
-		LOG.info( "Cassandra started");
-		}
-
-	}
-
-	public void shutdown() {
-
-	}
 
 	/**
-	 * Collects all data dirs and returns a set of String paths on the file
-	 * system.
-	 *
-	 * @return
-	 */
-	private Set<String> getDataDirs() {
-		Set<String> dirs = new HashSet<>();
-		for (String s : DatabaseDescriptor.getAllDataFileLocations()) {
-			dirs.add(s);
-		}
-		// dirs.add(DatabaseDescriptor.getLogFileLocation());
-		return dirs;
-	}
-
-	/**
-	 * Creates the data diurectories, if they didn't exist.
+	 * Set up the daemon or detect that it is already running.
 	 * 
 	 * @throws IOException
-	 *             if directories cannot be created (permissions etc).
+	 * @throws InterruptedException
 	 */
-	public void makeDirsIfNotExist()  {
-		for (String s : getDataDirs()) {
-			FileUtils.createDirectory(s);
+	private void setupCassandraDaemon() throws IOException, InterruptedException {
+		if (cassandraDaemon != null) {
+			String portStr[] = System.getProperty("CassandraSetup_Ports").split(",");
+			storagePort = Integer.valueOf(portStr[0]);
+			sslStoragePort = Integer.valueOf(portStr[1]);
+			nativePort = Integer.valueOf(portStr[2]);
+			tempDir = new File(System.getProperty("CassandraSetup_Dir"));
+			LOG.info(String.format("Cassandra dir: %s storage:%s ssl:%s native:%s", tempDir, storagePort,
+					sslStoragePort, nativePort));
+			LOG.info("Cassandra already running.");
+		} else {
+
+			tempDir = Files.createTempDir();
+			File storage = new File(tempDir, "storage");
+			storage.mkdir();
+			System.setProperty("cassandra.storagedir", tempDir.toString());
+
+			File yaml = new File(tempDir, "cassandra.yaml");
+			URL url = CassandraSetup.class.getClassLoader().getResource("cassandraTest.yaml");
+			FileOutputStream yamlOut = new FileOutputStream(yaml);
+			IOUtils.copy(url.openStream(), yamlOut);
+
+			int[] ports = findFreePorts(3);
+			storagePort = ports[0];
+			yamlOut.write(String.format(YAML_FMT, "storage_port", storagePort).getBytes());
+
+			sslStoragePort = ports[1];
+			yamlOut.write(String.format(YAML_FMT, "ssl_storage_port", sslStoragePort).getBytes());
+
+			nativePort = ports[2];
+			yamlOut.write(String.format(YAML_FMT, "native_transport_port", sslStoragePort).getBytes());
+
+			yamlOut.flush();
+			yamlOut.close();
+			System.setProperty("cassandra.config", yaml.toURI().toString());
+			System.setProperty("CassandraSetup_Ports",
+					String.format("%s,%s,%s", storagePort, sslStoragePort, nativePort));
+			System.setProperty("CassandraSetup_Dir", tempDir.toString());
+
+			LOG.info(String.format("Cassandra dir: %s storage:%s ssl:%s native:%s", tempDir, storagePort,
+					sslStoragePort, nativePort));
+
+			CountDownLatch latch = new CountDownLatch(1);
+			ExecutorService executor = Executors.newSingleThreadExecutor();
+			executor.execute(new Runnable() {
+
+				@Override
+				public void run() {
+					cassandraDaemon = new CassandraDaemon(true);
+					cassandraDaemon.activate();
+					latch.countDown();
+					Runtime.getRuntime().addShutdownHook(new Thread(new Runnable() {
+						@Override
+						public void run() {
+							cassandraDaemon.deactivate();
+							if (tempDir != null) {
+								FileUtils.deleteRecursive(tempDir);
+							}
+							LOG.warn("Cassandra stopped");
+						}
+					}));
+				}
+			});
+
+			LOG.info("Waiting for Cassandra to start");
+			latch.await();
+			LOG.info("Cassandra started");
 		}
+
+	}
+
+	/**
+	 * Clean up after the testing setup.
+	 */
+	public void shutdown() {
+
 	}
 
 	/**
@@ -215,18 +203,39 @@ public class CassandraSetup {
 		throw new IllegalStateException(String.format("Could not find %s free TCP/IP port(s)", num));
 	}
 
+	/**
+	 * get the temp directory used by this setup. This is where all the data for
+	 * the instance is stored.
+	 * 
+	 * @return The temp directory.
+	 */
 	public File getTempDir() {
 		return tempDir;
 	}
 
+	/**
+	 * get the port that cassandra is using for the storage engine.
+	 * 
+	 * @return the port for the storage engine.
+	 */
 	public int getStoragePort() {
 		return storagePort;
 	}
 
+	/**
+	 * get the port that cassandra is using for the ssl storage engine.
+	 * 
+	 * @return the port for the ssl storage engine.
+	 */
 	public int getSslStoragePort() {
 		return sslStoragePort;
 	}
 
+	/**
+	 * get the port that cassandra is using for the native interface.
+	 * 
+	 * @return the port for the native interface.
+	 */
 	public int getNativePort() {
 		return nativePort;
 	}

@@ -35,6 +35,10 @@ import org.xenei.junit.contract.IProducer;
 
 import org.xenei.junit.contract.Contract.Inject;
 
+/**
+ * Contract test suite for Cassandra DatasetGraph implementation.
+ *
+ */
 @RunWith(ContractSuite.class)
 @ContractImpl(DatasetGraphCassandra.class)
 public class TestDatasetGraphCassandra {
@@ -63,11 +67,11 @@ public class TestDatasetGraphCassandra {
 	@Before
 	public void setupTestGraphCassandra()
 			throws ConfigurationException, TTransportException, IOException, InterruptedException {
-		connection = new CassandraConnection( cassandra.getCluster() );
+		connection = new CassandraConnection(cassandra.getCluster());
 		connection.createKeyspace(String.format(
-						"CREATE KEYSPACE IF NOT EXISTS %s WITH REPLICATION = { 'class' : 'SimpleStrategy', 'replication_factor' : 1 }",
-						KEYSPACE));
-		//connection.deleteTables(KEYSPACE);
+				"CREATE KEYSPACE IF NOT EXISTS %s WITH REPLICATION = { 'class' : 'SimpleStrategy', 'replication_factor' : 1 }",
+				KEYSPACE));
+		// connection.deleteTables(KEYSPACE);
 		connection.createTables(KEYSPACE);
 		connection.truncateTables(KEYSPACE);
 	}
@@ -79,7 +83,6 @@ public class TestDatasetGraphCassandra {
 
 	protected IProducer<DatasetGraphCassandra> graphProducer = new IProducer<DatasetGraphCassandra>() {
 
-		
 		List<DatasetGraphCassandra> lst = new ArrayList<DatasetGraphCassandra>();
 
 		@Override
@@ -91,18 +94,17 @@ public class TestDatasetGraphCassandra {
 					throw new RuntimeException(e);
 				}
 			}
-			DatasetGraphCassandra dsg = new DatasetGraphCassandra( KEYSPACE, connection); 
+			DatasetGraphCassandra dsg = new DatasetGraphCassandra(KEYSPACE, connection);
 			lst.add(dsg);
 			return dsg;
 		}
 
 		@Override
 		public void cleanUp() {
-			for ( DatasetGraphCassandra dsg : lst)
-			{
+			for (DatasetGraphCassandra dsg : lst) {
 				dsg.close();
 			}
-			connection.truncateTables( KEYSPACE );
+			connection.truncateTables(KEYSPACE);
 		}
 
 	};

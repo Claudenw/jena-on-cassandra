@@ -35,45 +35,44 @@ import org.junit.Test;
 
 import com.datastax.driver.core.Cluster;
 
+/**
+ * Test the dataset assembler.
+ *
+ */
 public class CassandraDatasetAssemblerTest {
-	
-private CassandraDatasetAssembler assembler;
-private URL url;
-private Model model;
 
+	private CassandraDatasetAssembler assembler;
+	private URL url;
+	private Model model;
 
-	
 	@Before
 	public void before() throws IOException {
 		assembler = new CassandraDatasetAssembler();
-		url = Thread.currentThread().getContextClassLoader().getResource( "assembler/dataset.ttl");
+		url = Thread.currentThread().getContextClassLoader().getResource("assembler/dataset.ttl");
 		model = ModelFactory.createDefaultModel();
-		model.read( url.toString() );
+		model.read(url.toString());
 	}
-	
+
 	@Test
-	public void testRead() throws UnknownHostException
-	{
-		Cluster cluster =  Cluster.builder().addContactPoint("localhost").build();
-        Symbol symbol = Symbol.create(String.format( "%s/%s", VocabCassandra.Cluster.getURI(),
-        		"Test Cluster")) ;
-        ARQ.getContext().set(symbol, cluster);
-        
-		Object result = assembler.open( model.createResource( "http://example.com/dataset"));
-		assertTrue( result instanceof Dataset);
-		
+	public void testRead() throws UnknownHostException {
+		Cluster cluster = Cluster.builder().addContactPoint("localhost").build();
+		Symbol symbol = Symbol.create(String.format("%s/%s", VocabCassandra.Cluster.getURI(), "Test Cluster"));
+		ARQ.getContext().set(symbol, cluster);
+
+		Object result = assembler.open(model.createResource("http://example.com/dataset"));
+		assertTrue(result instanceof Dataset);
+
 	}
-	
+
 	@Test
-	public void testReadFromFile() throws UnknownHostException
-	{
+	public void testReadFromFile() throws UnknownHostException {
 		VocabCassandra.init();
-		Model model = AssemblerUtils.readAssemblerFile( url.toString() ); 
-		
-		Object result = Assembler.general.open(model.createResource( "http://example.com/dataset"));
-		        
-		assertTrue( result instanceof Dataset);
-		
+		Model model = AssemblerUtils.readAssemblerFile(url.toString());
+
+		Object result = Assembler.general.open(model.createResource("http://example.com/dataset"));
+
+		assertTrue(result instanceof Dataset);
+
 	}
 
 }

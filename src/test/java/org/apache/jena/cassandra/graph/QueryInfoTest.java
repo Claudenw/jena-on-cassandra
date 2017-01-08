@@ -36,6 +36,10 @@ import com.datastax.driver.core.Session;
 
 import static org.mockito.Mockito.*;
 
+/**
+ * Test the query info object.
+ *
+ */
 public class QueryInfoTest {
 
 	private static String graphHexValue = "0x0c00010b000100000018687474703a2f2f65786d61706c652e636f6d2f67726170680000";
