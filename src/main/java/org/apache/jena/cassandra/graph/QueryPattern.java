@@ -22,11 +22,11 @@ package org.apache.jena.cassandra.graph;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.ExecutionException;
 import java.util.function.Function;
 import java.util.function.Predicate;
 
@@ -46,7 +46,6 @@ import org.apache.jena.util.iterator.WrappedIterator;
 import org.apache.thrift.TDeserializer;
 import org.apache.thrift.TException;
 import com.datastax.driver.core.ResultSet;
-import com.datastax.driver.core.ResultSetFuture;
 import com.datastax.driver.core.Row;
 import com.datastax.driver.core.exceptions.InvalidQueryException;
 
@@ -435,41 +434,20 @@ public class QueryPattern {
 		}
 		else 
 		{
-		ExtendedIterator<Quad> iter = doFind(keyspace);
-		ConcurrentHashMap<Runnable, ResultSetFuture> map = new ConcurrentHashMap<>();
-		ForkJoinPool executor = new ForkJoinPool(1);
-		try {
-			while (iter.hasNext()) {
-
-				try {
-					Quad quad = iter.next();
-					String query = getDeleteStatement(quad);
-
-					Runnable runner = new Runnable() {
-						@Override
-						public void run() {
-							LOG.debug("delete completed");
-							map.remove(this);
-						}
-					};
-					if (LOG.isDebugEnabled()) {
-						LOG.debug("executing query: " + query);
+		
+			Iterator<String> queries = doFind(keyspace).mapWith( new Function<Quad,String>(){
+	
+				@Override
+				public String apply(Quad quad) {
+					try {
+						return getDeleteStatement(quad);
+					} catch (TException e) {
+						LOG.error( "Unable to create delete statement for "+quad, e);
+						return null;
 					}
-					ResultSetFuture rsf = connection.getSession(keyspace).executeAsync(query);
-					map.put(runner, rsf);
-					rsf.addListener(runner, executor);
-				} catch (TException e) {
-					LOG.error(String.format("Error deleting %s", quad), e);
-				}
-
-			}
-
-			while (!map.isEmpty()) {
-				Thread.yield();
-			}
-		} finally {
-			executor.shutdown();
-		}
+				}}).filterDrop( new FindNull<String>());
+			connection.executeUpdateSet(keyspace, queries);
+		
 		}
 
 	}
@@ -506,7 +484,7 @@ public class QueryPattern {
 	/*
 	 * package private for testing purposes
 	 */
-	/* package private */ String getInsertStatement() throws TException {
+	/* package private */ Iterator<String> getInsertStatement() throws TException {
 		if (ColumnName.S.getMatch(quad) == null || ColumnName.P.getMatch(quad) == null
 				|| ColumnName.O.getMatch(quad) == null || ColumnName.G.getMatch(quad) == null) {
 			throw new IllegalArgumentException(
@@ -515,31 +493,31 @@ public class QueryPattern {
 
 		QueryInfo queryInfo = new QueryInfo(quad);
 
-		StringBuilder sb = new StringBuilder("BEGIN BATCH").append(System.lineSeparator());
+		return CassandraConnection.getTableList().stream().map( new Function<TableName,String>(){
 
-		for (TableName tbl : CassandraConnection.getTableList()) {
-			sb.append(String.format("INSERT INTO %s (",  tbl));
-			boolean first = true;
-			for (ColumnName colName : queryInfo.values.keySet()) {
-				if (!first) {
-					sb.append(", ");
+			@Override
+			public String apply(TableName t) {
+				StringBuilder sb = new StringBuilder(String.format("INSERT INTO %s (",  t));
+				boolean first = true;
+				for (ColumnName colName : queryInfo.values.keySet()) {
+					if (!first) {
+						sb.append(", ");
+					}
+					sb.append(colName);
+					first = false;
 				}
-				sb.append(colName);
-				first = false;
-			}
 
-			sb.append(") VALUES (");
-			first = true;
-			for (ColumnName colName : queryInfo.values.keySet()) {
-				if (!first) {
-					sb.append(", ");
+				sb.append(") VALUES (");
+				first = true;
+				for (ColumnName colName : queryInfo.values.keySet()) {
+					if (!first) {
+						sb.append(", ");
+					}
+					sb.append(colName.getInsertValue(connection, queryInfo.values.get(colName)));
+					first = false;
 				}
-				sb.append(colName.getInsertValue(connection, queryInfo.values.get(colName)));
-				first = false;
-			}
-			sb.append(");").append(System.lineSeparator());
-		}
-		return sb.append("APPLY BATCH;").toString();
+				return sb.append(");").toString();		
+			}}).iterator();
 	}
 
 	/**
@@ -549,9 +527,11 @@ public class QueryPattern {
 	 *            The keyspace for the table.
 	 * @throws TException
 	 *             on encoding error.
+	 * @throws ExecutionException 
+	 * @throws InterruptedException 
 	 */
-	public void doInsert(String keyspace) throws TException {
-		connection.executeQuery(keyspace, getInsertStatement());
+	public void doInsert(String keyspace) throws TException, InterruptedException, ExecutionException {				
+		connection.executeUpdateSet(keyspace, getInsertStatement());
 	}
 
 	/**

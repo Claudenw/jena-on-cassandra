@@ -21,6 +21,8 @@ package org.apache.jena.cassandra.graph;
 import static org.junit.Assert.*;
 
 import java.util.Arrays;
+import java.util.Iterator;
+
 import org.apache.jena.graph.Node;
 import org.apache.jena.graph.NodeFactory;
 import org.apache.jena.graph.impl.LiteralLabelFactory;
@@ -753,25 +755,28 @@ public class QueryPatternTest {
 	public void insertNumTest() throws TException {
 		Quad q = new Quad(graph, subject, predicate, node42);
 		QueryPattern qp = new QueryPattern(connection, q);
-		String s = qp.getInsertStatement();
-		String[] lines = s.split("\n");
-		assertEquals(6, lines.length);
-		assertEquals("BEGIN BATCH", lines[0]);
+		Iterator<String> iter = qp.getInsertStatement();
+		assertTrue( iter.hasNext() );
+		String line = iter.next();
+		assertTrue("table missing", line.contains("SPOG"));
+		verifyInsertNumericValues(line);
 
-		assertTrue("table missing", lines[1].contains("SPOG"));
-		verifyInsertNumericValues(lines[1]);
+		assertTrue( iter.hasNext() );
+		line = iter.next();
+		assertTrue("table missing", line.contains("PGOS"));
+		verifyInsertNumericValues(line);
 
-		assertTrue("table missing", lines[2].contains("PGOS"));
-		verifyInsertNumericValues(lines[2]);
+		assertTrue( iter.hasNext() );
+		line = iter.next();
+		assertTrue("table missing", line.contains("OSGP"));
+		verifyInsertNumericValues(line);
 
-		assertTrue("table missing", lines[3].contains("OSGP"));
-		verifyInsertNumericValues(lines[3]);
+		assertTrue( iter.hasNext() );
+		line = iter.next();
+		assertTrue("table missing", line.contains("GSPO"));
+		verifyInsertNumericValues(line);
 
-		assertTrue("table missing", lines[4].contains("GSPO"));
-		verifyInsertNumericValues(lines[4]);
-
-		assertEquals("APPLY BATCH;", lines[5]);
-
+		assertFalse( iter.hasNext() );
 	}
 
 	private void verifyInsertLitValues(String line) {
@@ -789,24 +794,29 @@ public class QueryPatternTest {
 	public void insertLitTest() throws TException {
 		Quad q = new Quad(graph, subject, predicate, nodeLit);
 		QueryPattern qp = new QueryPattern(connection, q);
-		String s = qp.getInsertStatement();
-		String[] lines = s.split("\n");
-		assertEquals(6, lines.length);
-		assertEquals("BEGIN BATCH", lines[0]);
+		Iterator<String> iter = qp.getInsertStatement();
 
-		assertTrue("table missing", lines[1].contains("SPOG"));
-		verifyInsertLitValues(lines[1]);
+		assertTrue( iter.hasNext() );
+		String line = iter.next();
+		assertTrue("table missing", line.contains("SPOG"));
+		verifyInsertLitValues(line);
 
-		assertTrue("table missing", lines[2].contains("PGOS"));
-		verifyInsertLitValues(lines[2]);
+		assertTrue( iter.hasNext() );
+		line = iter.next();
+		assertTrue("table missing", line.contains("PGOS"));
+		verifyInsertLitValues(line);
 
-		assertTrue("table missing", lines[3].contains("OSGP"));
-		verifyInsertLitValues(lines[3]);
+		assertTrue( iter.hasNext() );
+		line = iter.next();
+		assertTrue("table missing", line.contains("OSGP"));
+		verifyInsertLitValues(line);
 
-		assertTrue("table missing", lines[4].contains("GSPO"));
-		verifyInsertLitValues(lines[4]);
-
-		assertEquals("APPLY BATCH;", lines[5]);
+		assertTrue( iter.hasNext() );
+		line = iter.next();
+		assertTrue("table missing", line.contains("GSPO"));
+		verifyInsertLitValues(line);
+		
+		assertFalse( iter.hasNext() );
 
 	}
 
@@ -826,24 +836,29 @@ public class QueryPatternTest {
 	public void insertLitLangText() throws TException {
 		Quad q = new Quad(graph, subject, predicate, nodeLitLang);
 		QueryPattern qp = new QueryPattern(connection, q);
-		String s = qp.getInsertStatement();
-		String[] lines = s.split("\n");
-		assertEquals(6, lines.length);
-		assertEquals("BEGIN BATCH", lines[0]);
+		Iterator<String> iter = qp.getInsertStatement();
 
-		assertTrue("table missing", lines[1].contains("SPOG"));
-		verifyInsertLitLangValues(lines[1]);
+		assertTrue( iter.hasNext() );
+		String line = iter.next();
+		assertTrue("table missing", line.contains("SPOG"));
+		verifyInsertLitLangValues(line);
 
-		assertTrue("table missing", lines[2].contains("PGOS"));
-		verifyInsertLitLangValues(lines[2]);
+		assertTrue( iter.hasNext() );
+		line = iter.next();
+		assertTrue("table missing", line.contains("PGOS"));
+		verifyInsertLitLangValues(line);
 
-		assertTrue("table missing", lines[3].contains("OSGP"));
-		verifyInsertLitLangValues(lines[3]);
+		assertTrue( iter.hasNext() );
+		line = iter.next();
+		assertTrue("table missing", line.contains("OSGP"));
+		verifyInsertLitLangValues(line);
 
-		assertTrue("table missing", lines[4].contains("GSPO"));
-		verifyInsertLitLangValues(lines[4]);
+		assertTrue( iter.hasNext() );
+		line = iter.next();
+		assertTrue("table missing", line.contains("GSPO"));
+		verifyInsertLitLangValues(line);
 
-		assertEquals("APPLY BATCH;", lines[5]);
+		assertFalse( iter.hasNext() );
 
 	}
 
@@ -859,25 +874,29 @@ public class QueryPatternTest {
 	public void insertObjectTest() throws TException {
 		Quad q = new Quad(graph, subject, predicate, object);
 		QueryPattern qp = new QueryPattern(connection, q);
-		String s = qp.getInsertStatement();
-		String[] lines = s.split("\n");
-		assertEquals(6, lines.length);
-		assertEquals("BEGIN BATCH", lines[0]);
+		Iterator<String> iter = qp.getInsertStatement();
 
-		assertTrue("table missing", lines[1].contains("SPOG"));
-		verifyInsertObjectValues(lines[1]);
+		assertTrue( iter.hasNext() );
+		String line = iter.next();
+		assertTrue("table missing", line.contains("SPOG"));
+		verifyInsertObjectValues(line);
 
-		assertTrue("table missing", lines[2].contains("PGOS"));
-		verifyInsertObjectValues(lines[2]);
+		assertTrue( iter.hasNext() );
+		line = iter.next();
+		assertTrue("table missing", line.contains("PGOS"));
+		verifyInsertObjectValues(line);
 
-		assertTrue("table missing", lines[3].contains("OSGP"));
-		verifyInsertObjectValues(lines[3]);
+		assertTrue( iter.hasNext() );
+		line = iter.next();
+		assertTrue("table missing", line.contains("OSGP"));
+		verifyInsertObjectValues(line);
 
-		assertTrue("table missing", lines[4].contains("GSPO"));
-		verifyInsertObjectValues(lines[4]);
+		assertTrue( iter.hasNext() );
+		line = iter.next();
+		assertTrue("table missing", line.contains("GSPO"));
+		verifyInsertObjectValues(line);
 
-		assertEquals("APPLY BATCH;", lines[5]);
-
+		assertFalse( iter.hasNext());
 	}
 
 	@Test

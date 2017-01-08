@@ -17,36 +17,23 @@
  */
 package org.apache.jena.cassandra.assembler;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
-import java.io.File;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.net.URL;
 import java.net.UnknownHostException;
 
 import org.apache.jena.assembler.Assembler;
-import org.apache.jena.cassandra.CassandraSetup;
-import org.apache.jena.cassandra.graph.CassandraConnection;
 import org.apache.jena.query.ARQ;
 import org.apache.jena.query.Dataset;
 import org.apache.jena.rdf.model.Model;
 import org.apache.jena.rdf.model.ModelFactory;
-import org.apache.jena.rdf.model.Resource;
-import org.apache.jena.rdf.model.Statement;
 import org.apache.jena.sparql.core.assembler.AssemblerUtils;
 import org.apache.jena.sparql.util.Symbol;
-import org.apache.thrift.transport.TTransportException;
-import org.junit.After;
-import org.junit.AfterClass;
 import org.junit.Before;
-import org.junit.BeforeClass;
 import org.junit.Test;
 
 import com.datastax.driver.core.Cluster;
-import com.datastax.driver.core.Configuration;
 
 public class CassandraDatasetAssemblerTest {
 	

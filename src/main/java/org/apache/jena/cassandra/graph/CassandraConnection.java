@@ -21,8 +21,15 @@ package org.apache.jena.cassandra.graph;
 import java.io.Closeable;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.function.Function;
+
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.jena.graph.Node;
@@ -34,6 +41,7 @@ import org.apache.thrift.TSerializer;
 
 import com.datastax.driver.core.Cluster;
 import com.datastax.driver.core.ResultSet;
+import com.datastax.driver.core.ResultSetFuture;
 import com.datastax.driver.core.Session;
 import com.datastax.driver.core.exceptions.QueryValidationException;
 import com.datastax.driver.core.utils.Bytes;
@@ -146,14 +154,18 @@ public class CassandraConnection implements Closeable {
 
 	public CassandraConnection(Cluster cluster) {
 		this.cluster = cluster;		
-		this.sessions = new HashMap<String,Session>();
+		this.sessions = Collections.synchronizedMap(new HashMap<String,Session>());
 	}
 
 	@Override
 	public void close() {
-		for (Session session : sessions.values())
+		synchronized (sessions)
 		{
-			session.close();
+			for (Session session : sessions.values())
+			{
+				session.close();
+			}
+			sessions.clear();
 		}
 	}
 	
@@ -181,6 +193,7 @@ public class CassandraConnection implements Closeable {
 		if (retval == null)
 		{
 			retval = cluster.connect(keyspace);
+			sessions.put(keyspace, retval);
 		}
 		return retval;
 	}
@@ -223,12 +236,46 @@ public class CassandraConnection implements Closeable {
 	 *            The keyspace to delete from.
 	 */
 	public void truncateTables(String keyspace) {
+				
+		Iterator<String> queries = CassandraConnection.getTableList().stream().map( new Function<TableName,String>(){
+			@Override
+			public String apply(TableName t) {
+				return String.format("TRUNCATE %s ;", t.getName());
+			}}).iterator();
+		executeUpdateSet( keyspace, queries );
+	}
+	
+	public void executeUpdateSet( String keyspace, Iterator<String> queries )
+	{
 		Session session = getSession(keyspace);
-		//StringBuilder sb = new StringBuilder();//"BEGIN BATCH").append(System.lineSeparator());
-		for (TableName tableName : CassandraConnection.getTableList()) {
-			session.execute(String.format("TRUNCATE %s.%s ;", keyspace, tableName.getName()));
+		ConcurrentHashMap<Runnable, ResultSetFuture> map = new ConcurrentHashMap<>();
+		ExecutorService executor = Executors.newSingleThreadExecutor();
+		//ForkJoinPool executor = new ForkJoinPool(1);
+		try {
+			while (queries.hasNext()) {
+				String query = queries.next();
+
+					Runnable runner = new Runnable() {
+						@Override
+						public void run() {
+							LOG.debug( "finished executing query: "+query);
+							map.remove(this);
+						}
+					};
+					if (LOG.isDebugEnabled()) {
+						LOG.debug("executing query: " + query);
+					}
+					ResultSetFuture rsf = session.executeAsync(query);
+					map.put(runner, rsf);
+					rsf.addListener(runner, executor);			
+			}
+			while (!map.isEmpty()) {
+				Thread.yield();
+			}
+		} finally {
+			executor.shutdown();
 		}
-		//session.execute(sb/*.append("APPLY BATCH;")*/.toString());
+
 	}
 
 	/**
@@ -258,6 +305,18 @@ public class CassandraConnection implements Closeable {
 		}
 	}
 
+	public ResultSetFuture executeUpdate(String keyspace, String query) {
+		if (LOG.isDebugEnabled()) {
+			LOG.debug("executing query: " + query);
+		}
+		try {
+			return getSession(keyspace).executeAsync(query);
+		} catch (QueryValidationException e) {
+			LOG.error(String.format("Query Execution issue (%s) while executing: (%s)", e.getMessage(), query), e);
+			throw e;
+		}
+	}
+	
 	/**
 	 * Return the serialized value of the node.
 	 * 

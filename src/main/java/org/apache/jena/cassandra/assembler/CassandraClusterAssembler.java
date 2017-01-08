@@ -201,7 +201,7 @@ public class CassandraClusterAssembler extends AssemblerBase implements Assemble
         Object o = ARQ.getContext().get(symbol);
         if (o != null && o instanceof Cluster)
         {
-        	((Cluster)o).close();
+        	return (Cluster)o;
         }
         
         return register( Cluster.builder().addContactPoint(contactPoint).withPort(port).build(),

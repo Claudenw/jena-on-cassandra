@@ -18,6 +18,7 @@
 
 package org.apache.jena.cassandra.graph;
 
+import java.util.concurrent.ExecutionException;
 import java.util.function.Function;
 
 import org.apache.commons.lang3.StringUtils;
@@ -109,22 +110,22 @@ public class GraphCassandra extends GraphBase {
 
 	@Override
 	public void performAdd(Triple t) {
-//		if (Quad.isDefaultGraph(graph)) {
-//			throw new AddDeniedException("Can not add to default graph named " + graph);
-//		}
+
 		QueryPattern pattern = new QueryPattern(connection, graph, t);
 		try {
 			pattern.doInsert(keyspace);
 		} catch (TException e) {
 			LOG.error("bad values", e);
+		} catch (InterruptedException e) {
+			LOG.error("Insert interrupted", e);
+		} catch (ExecutionException e) {
+			LOG.error("Insert error", e);
 		}
 	}
 
 	@Override
 	public void performDelete(Triple t) {
-//		if (Quad.isDefaultGraph(graph)) {
-//			throw new AddDeniedException("Can not delete from default graph named " + graph);
-//		}
+
 		// do not delete any triple with a wild card.
 		if (t.getMatchSubject() == null || t.getMatchPredicate() == null ||
 				t.getMatchObject() == null)

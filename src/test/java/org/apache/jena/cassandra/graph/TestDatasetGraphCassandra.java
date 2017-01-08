@@ -24,11 +24,6 @@ import java.util.List;
 
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.jena.cassandra.CassandraSetup;
-import org.apache.jena.cassandra.assembler.CassandraClusterAssembler;
-import org.apache.jena.graph.Graph;
-import org.apache.jena.graph.NodeFactory;
-import org.apache.jena.graph.Triple;
-import org.apache.jena.testing_framework.AbstractGraphProducer;
 import org.apache.thrift.transport.TTransportException;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -37,8 +32,6 @@ import org.junit.runner.RunWith;
 import org.xenei.junit.contract.ContractImpl;
 import org.xenei.junit.contract.ContractSuite;
 import org.xenei.junit.contract.IProducer;
-
-import com.datastax.driver.core.Cluster;
 
 import org.xenei.junit.contract.Contract.Inject;
 

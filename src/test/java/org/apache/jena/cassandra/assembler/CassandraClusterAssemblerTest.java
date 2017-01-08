@@ -19,25 +19,15 @@ package org.apache.jena.cassandra.assembler;
 
 import static org.junit.Assert.*;
 
-import java.io.IOException;
-import java.net.InetAddress;
 import java.net.URL;
 import java.net.UnknownHostException;
-import java.util.Set;
-
-import org.apache.jena.cassandra.CassandraSetup;
 import org.apache.jena.rdf.model.Model;
 import org.apache.jena.rdf.model.ModelFactory;
-import org.apache.thrift.transport.TTransportException;
-import org.junit.AfterClass;
 import org.junit.Before;
-import org.junit.BeforeClass;
 import org.junit.Test;
 
 import com.datastax.driver.core.Cluster;
 import com.datastax.driver.core.Configuration;
-import com.datastax.driver.core.Host;
-import com.datastax.driver.core.Metadata;
 
 public class CassandraClusterAssemblerTest {
 	
