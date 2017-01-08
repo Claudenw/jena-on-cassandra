@@ -157,7 +157,7 @@ public class GraphCassandra extends GraphBase {
 
 	@Override
 	public boolean isClosed() {
-		return super.isClosed() || connection.getSession().isClosed();
+		return super.isClosed() || connection.getSession(keyspace).isClosed();
 	}
 
 	@Override

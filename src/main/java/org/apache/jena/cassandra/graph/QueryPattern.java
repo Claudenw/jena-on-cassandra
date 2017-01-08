@@ -297,8 +297,8 @@ public class QueryPattern {
 				queryInfo.values.remove(ColumnName.O);
 				queryInfo.tableName = CassandraConnection.getTable(CassandraConnection.getId(queryInfo.tableQuad));
 			}
-			Query query = getFindQuery(keyspace, queryInfo);
-			ResultSet rs = connection.executeQuery(query.text.toString());
+			Query query = getFindQuery(queryInfo);
+			ResultSet rs = connection.executeQuery(keyspace,query.text.toString());
 			ExtendedIterator<Quad> iter = WrappedIterator.create(rs.iterator()).mapWith(new RowToQuad())
 					.filterDrop(new FindNull<Quad>());
 			/*
@@ -325,7 +325,7 @@ public class QueryPattern {
 	/*
 	 * package private for testing
 	 */
-	/* package private */ Query getFindQuery(String keyspace, QueryInfo queryInfo) throws TException {
+	/* package private */ Query getFindQuery(QueryInfo queryInfo) throws TException {
 		/*
 		 * Adjust the table name based on the presence of the index on the
 		 * object field. If the object field is a number then we need to use the
@@ -334,7 +334,7 @@ public class QueryPattern {
 
 		Query query = new Query();
 		query.text = new StringBuilder(
-				String.format("SELECT %s FROM %s.%s", SELECT_COLUMNS, keyspace, queryInfo.tableName));
+				String.format("SELECT %s FROM %s", SELECT_COLUMNS, queryInfo.tableName));
 
 		QueryInfo.WhereClause whereClause = queryInfo.getWhereClause();
 
@@ -403,7 +403,7 @@ public class QueryPattern {
 		return false;
 	}
 
-	/* package private */ String getDeleteStatement(String keyspace, Quad quad) throws TException {
+	/* package private */ String getDeleteStatement(Quad quad) throws TException {
 		if (ColumnName.S.getMatch(quad) == null || ColumnName.P.getMatch(quad) == null
 				|| ColumnName.O.getMatch(quad) == null || ColumnName.G.getMatch(quad) == null) {
 			throw new IllegalArgumentException(
@@ -416,7 +416,7 @@ public class QueryPattern {
 		for (TableName tableName : CassandraConnection.getTableList()) {
 			queryInfo.tableName = tableName;
 			String whereClause = queryInfo.getWhereClause().text.toString();
-			String cmd = String.format("DELETE FROM %s.%s %s;%n", keyspace, queryInfo.tableName.getName(), whereClause);
+			String cmd = String.format("DELETE FROM %s %s;%n", queryInfo.tableName.getName(), whereClause);
 			sb.append(cmd);
 		}
 		return sb.append("APPLY BATCH;").toString();
@@ -443,7 +443,7 @@ public class QueryPattern {
 
 				try {
 					Quad quad = iter.next();
-					String query = getDeleteStatement(keyspace, quad);
+					String query = getDeleteStatement(quad);
 
 					Runnable runner = new Runnable() {
 						@Override
@@ -455,7 +455,7 @@ public class QueryPattern {
 					if (LOG.isDebugEnabled()) {
 						LOG.debug("executing query: " + query);
 					}
-					ResultSetFuture rsf = connection.getSession().executeAsync(query);
+					ResultSetFuture rsf = connection.getSession(keyspace).executeAsync(query);
 					map.put(runner, rsf);
 					rsf.addListener(runner, executor);
 				} catch (TException e) {
@@ -496,9 +496,9 @@ public class QueryPattern {
 			}
 			return count;
 		} else {
-			String query = String.format("SELECT count(%s) FROM %s.%s %s", tableName.getPartitionKey(), keyspace,
+			String query = String.format("SELECT count(%s) FROM %s %s", tableName.getPartitionKey(),
 					tableName, whereClause.text);
-			ResultSet rs = connection.executeQuery(query);
+			ResultSet rs = connection.executeQuery(keyspace,query);
 			return rs.one().getLong(0);
 		}
 	}
@@ -506,7 +506,7 @@ public class QueryPattern {
 	/*
 	 * package private for testing purposes
 	 */
-	/* package private */ String getInsertStatement(String keyspace) throws TException {
+	/* package private */ String getInsertStatement() throws TException {
 		if (ColumnName.S.getMatch(quad) == null || ColumnName.P.getMatch(quad) == null
 				|| ColumnName.O.getMatch(quad) == null || ColumnName.G.getMatch(quad) == null) {
 			throw new IllegalArgumentException(
@@ -518,7 +518,7 @@ public class QueryPattern {
 		StringBuilder sb = new StringBuilder("BEGIN BATCH").append(System.lineSeparator());
 
 		for (TableName tbl : CassandraConnection.getTableList()) {
-			sb.append(String.format("INSERT INTO %s.%s (", keyspace, tbl));
+			sb.append(String.format("INSERT INTO %s (",  tbl));
 			boolean first = true;
 			for (ColumnName colName : queryInfo.values.keySet()) {
 				if (!first) {
@@ -551,7 +551,7 @@ public class QueryPattern {
 	 *             on encoding error.
 	 */
 	public void doInsert(String keyspace) throws TException {
-		connection.executeQuery(getInsertStatement(keyspace));
+		connection.executeQuery(keyspace, getInsertStatement());
 	}
 
 	/**

@@ -125,7 +125,7 @@ public class CassandraConnection implements Closeable {
 	private final Cluster cluster;
 
 	/* Cassandra Session. */
-	private final Session session;
+	private final Map<String,Session>  sessions;
 
 	/**
 	 * Build the table ID from the graph name and the triple pattern.
@@ -144,39 +144,24 @@ public class CassandraConnection implements Closeable {
 
 	}
 
-	/**
-	 * Constructor.
-	 * 
-	 * @param contactPoint
-	 *            The contact point for the cassandra server.
-	 * @param port
-	 *            the port for the cassandra server.
-	 */
-	public CassandraConnection(String contactPoint, int port) {
-		this.cluster = Cluster.builder().addContactPoint(contactPoint).withPort(port).build();
-		this.session = cluster.connect();
-	}
-
-	/**
-	 * Constructor. Uses port 9042
-	 * 
-	 * @param contactPoint
-	 *            The contact point for the cassandra server.
-	 */
-	public CassandraConnection(String contactPoint) {
-		this(contactPoint, 9042);
-	}
-
 	public CassandraConnection(Cluster cluster) {
-		this.cluster = cluster;
-		this.session = cluster.newSession();
+		this.cluster = cluster;		
+		this.sessions = new HashMap<String,Session>();
 	}
 
 	@Override
 	public void close() {
-		cluster.close();
+		for (Session session : sessions.values())
+		{
+			session.close();
+		}
 	}
-
+	
+	public void createKeyspace( String createStmt )
+	{
+		cluster.connect().execute(createStmt);
+	}
+	
 	/**
 	 * Get the list of tabales.
 	 * 
@@ -191,8 +176,13 @@ public class CassandraConnection implements Closeable {
 	 * 
 	 * @return The cassandra session.
 	 */
-	public Session getSession() {
-		return session;
+	public Session getSession(String keyspace) {
+		Session retval = sessions.get(keyspace);
+		if (retval == null)
+		{
+			retval = cluster.connect(keyspace);
+		}
+		return retval;
 	}
 
 	/**
@@ -202,10 +192,11 @@ public class CassandraConnection implements Closeable {
 	 *            The keyspace to delete from
 	 */
 	public void deleteTables(String keyspace) {
+		Session session = getSession(keyspace);
 		for (TableName tbl : getTableList()) {
 			String stmt = String.format("DROP TABLE IF EXISTS %s.%s", keyspace, tbl);
 			LOG.debug(stmt);
-			getSession().execute(stmt);
+			session.execute(stmt);
 		}
 	}
 
@@ -216,10 +207,11 @@ public class CassandraConnection implements Closeable {
 	 *            the keyspace to create the tables in.
 	 */
 	public void createTables(String keyspace) {
+		Session session = getSession(keyspace);
 		for (TableName tbl : getTableList()) {
 			for (String stmt : tbl.getCreateTableStatements(keyspace)) {
 				LOG.debug(stmt);
-				getSession().execute(stmt);
+				session.execute(stmt);
 			}
 		}
 	}
@@ -231,7 +223,7 @@ public class CassandraConnection implements Closeable {
 	 *            The keyspace to delete from.
 	 */
 	public void truncateTables(String keyspace) {
-
+		Session session = getSession(keyspace);
 		//StringBuilder sb = new StringBuilder();//"BEGIN BATCH").append(System.lineSeparator());
 		for (TableName tableName : CassandraConnection.getTableList()) {
 			session.execute(String.format("TRUNCATE %s.%s ;", keyspace, tableName.getName()));
@@ -254,12 +246,12 @@ public class CassandraConnection implements Closeable {
 		return tblName;
 	}
 
-	public ResultSet executeQuery(String query) {
+	public ResultSet executeQuery(String keyspace, String query) {
 		if (LOG.isDebugEnabled()) {
 			LOG.debug("executing query: " + query);
 		}
 		try {
-			return getSession().execute(query);
+			return getSession(keyspace).execute(query);
 		} catch (QueryValidationException e) {
 			LOG.error(String.format("Query Execution issue (%s) while executing: (%s)", e.getMessage(), query), e);
 			throw e;

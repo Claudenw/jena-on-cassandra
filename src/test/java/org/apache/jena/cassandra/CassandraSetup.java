@@ -16,9 +16,10 @@
  * limitations under the License.
  */
 
-package org.apache.jena.cassandra.graph;
+package org.apache.jena.cassandra;
 
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.net.ServerSocket;
@@ -27,14 +28,21 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.service.CassandraDaemon;
-import org.apache.cassandra.service.EmbeddedCassandraService;
 import org.apache.commons.io.IOUtils;
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+import org.apache.jena.cassandra.assembler.CassandraClusterAssembler;
 import org.apache.jena.ext.com.google.common.io.Files;
 import org.apache.thrift.transport.TTransportException;
+
+import com.datastax.driver.core.Cluster;
+
 
 /**
  * A class to properly setup the testing Cassandra instance.
@@ -44,15 +52,37 @@ import org.apache.thrift.transport.TTransportException;
  *
  */
 public class CassandraSetup {
-	private final File tempDir;
-	private final int storagePort;
-	private final int sslStoragePort;
-	private final int nativePort;
-	private CassandraDaemon cassandraDaemon;;
-
+	private File tempDir;
+	private int storagePort;
+	private int sslStoragePort;
+	private int nativePort;
+	private static CassandraDaemon cassandraDaemon;
+	private static final Log LOG = LogFactory.getLog(CassandraSetup.class);
 	private final static String YAML_FMT = "%n%s: %s%n";
+	private Cluster cluster;
 
-	public CassandraSetup() throws TTransportException, IOException {
+	public CassandraSetup() throws IOException, InterruptedException {
+		setupCassandraDaemon();
+		cluster = CassandraClusterAssembler.getCluster("testing", "localhost", sslStoragePort );
+	}
+	
+	public Cluster getCluster() {
+		return cluster;
+	}
+	
+	private void setupCassandraDaemon() throws IOException, InterruptedException {
+		if (cassandraDaemon != null)
+		{
+			String portStr[] = System.getProperty("CassandraSetup_Ports").split(",");
+			storagePort = Integer.valueOf( portStr[0]);
+			sslStoragePort = Integer.valueOf( portStr[1]);
+			nativePort = Integer.valueOf( portStr[2]);	
+			tempDir = new File( System.getProperty("CassandraSetup_Dir") );
+			LOG.info( String.format("Cassandra dir: %s storage:%s ssl:%s native:%s", tempDir, storagePort, sslStoragePort, nativePort));
+			LOG.info( "Cassandra already running.");
+		}
+		else {
+
 		tempDir = Files.createTempDir();
 		File storage = new File(tempDir, "storage");
 		storage.mkdir();
@@ -76,22 +106,43 @@ public class CassandraSetup {
 		yamlOut.flush();
 		yamlOut.close();
 		System.setProperty("cassandra.config", yaml.toURI().toString());
+		System.setProperty("CassandraSetup_Ports", String.format( "%s,%s,%s", storagePort,sslStoragePort,nativePort));
+		System.setProperty("CassandraSetup_Dir", tempDir.toString());
 
+		LOG.info( String.format("Cassandra dir: %s storage:%s ssl:%s native:%s", tempDir, storagePort, sslStoragePort, nativePort));
 		
-        cassandraDaemon = new CassandraDaemon();
-        cassandraDaemon.activate();
-        //cassandraDaemon.init(null);
-        //cassandraDaemon.start();
-		    
+		CountDownLatch latch = new CountDownLatch(1);
+		ExecutorService executor = Executors.newSingleThreadExecutor();
+		executor.execute( new Runnable() {
+
+            @Override
+            public void run() {
+                cassandraDaemon = new CassandraDaemon(true);
+                makeDirsIfNotExist();
+                cassandraDaemon.activate();
+                latch.countDown();
+                Runtime.getRuntime().addShutdownHook(new Thread(new Runnable() {
+                    @Override
+                    public void run() {
+                        cassandraDaemon.deactivate();
+                        if (tempDir != null)
+						{
+							FileUtils.deleteRecursive(tempDir);
+						}
+                        LOG.warn( "Cassandra stopped");
+                }}));
+            }
+        });
+		
+		LOG.info( "Waiting for Cassandra to start");
+		latch.await();
+		LOG.info( "Cassandra started");
+		}
 
 	}
 
 	public void shutdown() {
-		cassandraDaemon.deactivate();
-		//cassandraDaemon.stop();		
-		//cassandraDaemon.destroy();
-		FileUtils.deleteRecursive(tempDir);
-		cassandraDaemon=null;
+
 	}
 
 	/**
@@ -115,7 +166,7 @@ public class CassandraSetup {
 	 * @throws IOException
 	 *             if directories cannot be created (permissions etc).
 	 */
-	public void makeDirsIfNotExist() throws IOException {
+	public void makeDirsIfNotExist()  {
 		for (String s : getDataDirs()) {
 			FileUtils.createDirectory(s);
 		}

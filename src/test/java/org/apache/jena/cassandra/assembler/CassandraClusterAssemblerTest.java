@@ -25,7 +25,7 @@ import java.net.URL;
 import java.net.UnknownHostException;
 import java.util.Set;
 
-import org.apache.jena.cassandra.graph.CassandraSetup;
+import org.apache.jena.cassandra.CassandraSetup;
 import org.apache.jena.rdf.model.Model;
 import org.apache.jena.rdf.model.ModelFactory;
 import org.apache.thrift.transport.TTransportException;

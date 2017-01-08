@@ -21,6 +21,9 @@ package org.apache.jena.cassandra.assembler;
 import static org.apache.jena.sparql.util.graph.GraphUtils.getStringValue;
 import static org.apache.jena.sparql.util.graph.GraphUtils.exactlyOneProperty;
 import static org.apache.jena.sparql.util.graph.GraphUtils.multiValueString;
+
+import org.apache.cassandra.io.util.FileUtils;
+
 import static org.apache.jena.sparql.util.graph.GraphUtils.atmostOneProperty;
 import static org.apache.jena.sparql.util.graph.GraphUtils.getResourceValue;
 
@@ -133,13 +136,21 @@ public class CassandraClusterAssembler extends AssemblerBase implements Assemble
         {
         	builder.withSSL();
         }
-        
-        Cluster cluster = builder.build();
-        
+      
+        return register(builder.build(), name);
+	}
+	
+	private static Cluster register(Cluster cluster, String name) {
         Symbol symbol = Symbol.create(String.format( "%s/%s", VocabCassandra.Cluster.getURI(),
         		name)) ;
         
         ARQ.getContext().set(symbol, cluster);
+        Runtime.getRuntime().addShutdownHook(new Thread(new Runnable() {
+            @Override
+            public void run() {
+                cluster.close();
+        }}));
+        
         return cluster;
 	}
 	
@@ -181,4 +192,21 @@ public class CassandraClusterAssembler extends AssemblerBase implements Assemble
         }
 
 	}
+	
+	public static Cluster getCluster( String clusterName, String contactPoint, int port )
+	{
+		Symbol symbol = Symbol.create(String.format( "%s/%s", VocabCassandra.Cluster.getURI(),
+        		clusterName)) ;
+        
+        Object o = ARQ.getContext().get(symbol);
+        if (o != null && o instanceof Cluster)
+        {
+        	((Cluster)o).close();
+        }
+        
+        return register( Cluster.builder().addContactPoint(contactPoint).withPort(port).build(),
+				clusterName);
+        
+	}
+
 }

@@ -20,6 +20,8 @@ package org.apache.jena.cassandra.graph;
 
 import java.io.IOException;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.jena.cassandra.CassandraSetup;
+import org.apache.jena.cassandra.assembler.CassandraClusterAssembler;
 import org.apache.jena.graph.Graph;
 import org.apache.jena.graph.NodeFactory;
 import org.apache.jena.graph.Triple;
@@ -33,6 +35,8 @@ import org.xenei.junit.contract.ContractImpl;
 import org.xenei.junit.contract.ContractSuite;
 import org.xenei.junit.contract.IProducer;
 import org.xenei.junit.contract.Contract.Inject;
+
+import com.datastax.driver.core.Cluster;
 
 @RunWith(ContractSuite.class)
 @ContractImpl(GraphCassandra.class)
@@ -62,9 +66,8 @@ public class TestGraphCassandra {
 	@Before
 	public void setupTestGraphCassandra()
 			throws ConfigurationException, TTransportException, IOException, InterruptedException {
-		connection = new CassandraConnection("localhost", cassandra.getSslStoragePort());
-		connection.getSession()
-				.execute(String.format(
+		connection = new CassandraConnection( cassandra.getCluster());
+		connection.createKeyspace(String.format(
 						"CREATE KEYSPACE IF NOT EXISTS %s WITH REPLICATION = { 'class' : 'SimpleStrategy', 'replication_factor' : 1 }",
 						KEYSPACE));
 		connection.deleteTables(KEYSPACE);

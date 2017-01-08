@@ -28,8 +28,8 @@ import java.net.URL;
 import java.net.UnknownHostException;
 
 import org.apache.jena.assembler.Assembler;
+import org.apache.jena.cassandra.CassandraSetup;
 import org.apache.jena.cassandra.graph.CassandraConnection;
-import org.apache.jena.cassandra.graph.CassandraSetup;
 import org.apache.jena.query.ARQ;
 import org.apache.jena.query.Dataset;
 import org.apache.jena.rdf.model.Model;
