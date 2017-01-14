@@ -125,13 +125,14 @@ public class CassandraClusterAssembler extends AssemblerBase implements Assemble
 			builder.withCredentials(username, password);
 		}
 
-		RDFNode metrics = getNode(root, VocabCassandra.metrics);
-		if (metrics == null) {
-			builder.withoutMetrics();
+		String metrics = getStringValue(root, VocabCassandra.metrics);
+		if (metrics != null && ! Boolean.valueOf(metrics))
+			{
+					builder.withoutMetrics();		
 		}
 
-		RDFNode ssl = getNode(root, VocabCassandra.ssl);
-		if (ssl == null) {
+		String ssl = getStringValue(root, VocabCassandra.ssl);
+		if (ssl != null && Boolean.valueOf(ssl)) {
 			builder.withSSL();
 		}
 

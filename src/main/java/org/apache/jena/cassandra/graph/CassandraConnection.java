@@ -25,9 +25,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.function.Function;
 
 import org.apache.commons.logging.Log;
@@ -276,36 +273,10 @@ public class CassandraConnection implements Closeable {
 	 */
 	public void executeUpdateSet( String keyspace, Iterator<String> statements )
 	{
-		Session session = getSession(keyspace);
-		ConcurrentHashMap<Runnable, ResultSetFuture> map = new ConcurrentHashMap<>();
-		ExecutorService executor = Executors.newSingleThreadExecutor();
-		//ForkJoinPool executor = new ForkJoinPool(1);
-		try {
-			while (statements.hasNext()) {
-				String query = statements.next();
-
-					Runnable runner = new Runnable() {
-						@Override
-						public void run() {
-							LOG.debug( "finished executing query: "+query);
-							map.remove(this);
-						}
-					};
-					if (LOG.isDebugEnabled()) {
-						LOG.debug("executing query: " + query);
-					}
-					ResultSetFuture rsf = session.executeAsync(query);
-					map.put(runner, rsf);
-					rsf.addListener(runner, executor);			
-			}
-			while (!map.isEmpty()) {
-				Thread.yield();
-			}
-		} finally {
-			executor.shutdown();
-		}
-
-	}
+		BulkExecutor bulkExecutor = new BulkExecutor( getSession(keyspace) );
+		bulkExecutor.execute(statements);
+		bulkExecutor.awaitFinish();
+	}	
 
 	/**
 	 * Get the table name for the ID.
@@ -374,5 +345,5 @@ public class CassandraConnection implements Closeable {
 		byte[] bary = ser.serialize(term);
 		return Bytes.toHexString(bary);
 	}
-
+	
 }

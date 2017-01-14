@@ -120,7 +120,7 @@ public class CassandraSetup {
 			System.setProperty("CassandraSetup_Ports",
 					String.format("%s,%s,%s", storagePort, sslStoragePort, nativePort));
 			System.setProperty("CassandraSetup_Dir", tempDir.toString());
-
+			System.setProperty("cassandra-foreground", "true");
 			LOG.info(String.format("Cassandra dir: %s storage:%s ssl:%s native:%s", tempDir, storagePort,
 					sslStoragePort, nativePort));
 
