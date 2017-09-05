@@ -32,3 +32,21 @@ When the Graph.find(), DatasetGraph.find() or DatasetGraph.findNG() is called th
 can best answer the query given the g, s, p or o values.
 
 Depending on the value of the o the indexes are added to the primary segments.
+
+Cassandra queries have some particular requirements:
+			  
+1. the primary key must be specified. If it is not specified then
+token( col ) > Long.MIN_VALUE will return all the values
+			  
+1. the rest of the key columns do not have to be specified except
+that if a key segment has a value all earlier segments must also
+have values.
+			  
+To handle the case where a previous key segment is missing we
+will stop at the first missing segment. If there are any further
+specified segments we will use a result filter to properly filter
+them.
+
+We always remove the object value if any non primary data (obj_dtype, obj_int, obj_value) are
+available as we will use the other columns for the primary query, and then the indexes to locate the
+proper values.
