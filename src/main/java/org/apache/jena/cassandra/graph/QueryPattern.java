@@ -1,5 +1,5 @@
 /*
- * 
+ *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -45,6 +45,8 @@ import org.apache.jena.util.iterator.NiceIterator;
 import org.apache.jena.util.iterator.WrappedIterator;
 import org.apache.thrift.TDeserializer;
 import org.apache.thrift.TException;
+import org.apache.thrift.transport.TTransportException;
+
 import com.datastax.driver.core.ResultSet;
 import com.datastax.driver.core.Row;
 import com.datastax.driver.core.exceptions.InvalidQueryException;
@@ -102,7 +104,7 @@ public class QueryPattern {
 
 	/**
 	 * Constructor.
-	 * 
+	 *
 	 * @param connection
 	 *            The connection to use.
 	 * @param graph
@@ -116,7 +118,7 @@ public class QueryPattern {
 
 	/**
 	 * Normalize the graph node to null for union graph or Node.ANY
-	 * 
+	 *
 	 * @param graph
 	 *            The graph to normalize
 	 * @return The normalized graph.
@@ -127,7 +129,7 @@ public class QueryPattern {
 
 	/**
 	 * Constructor.
-	 * 
+	 *
 	 * @param connection
 	 *            The connection to use.
 	 * @param quad
@@ -140,7 +142,7 @@ public class QueryPattern {
 
 	/**
 	 * Get the quad the pattern is working with.
-	 * 
+	 *
 	 * @return the quad the pattern is working with.
 	 */
 	public Quad getQuad() {
@@ -149,7 +151,7 @@ public class QueryPattern {
 
 	/**
 	 * Get the table ID for this query.
-	 * 
+	 *
 	 * @return The table ID for this query.
 	 */
 	public String getId() {
@@ -158,7 +160,7 @@ public class QueryPattern {
 
 	/**
 	 * Get the table name for this query.
-	 * 
+	 *
 	 * @return The table we are going to query.
 	 */
 	public TableName getTableName() {
@@ -167,7 +169,7 @@ public class QueryPattern {
 
 	/**
 	 * Get the query info for this QueryPattern
-	 * 
+	 *
 	 * @return the query info
 	 */
 	public QueryInfo getQueryInfo() {
@@ -176,7 +178,7 @@ public class QueryPattern {
 
 	/**
 	 * Get the query info for the specified quad
-	 * 
+	 *
 	 * @param quad
 	 *            the quad to get the query info for.
 	 * @return the query info
@@ -187,9 +189,9 @@ public class QueryPattern {
 
 	/**
 	 * Get a list of query values for all known columns.
-	 * 
+	 *
 	 * Column values are strings except for numeric column I which is a big int.
-	 * 
+	 *
 	 * @param quad
 	 *            The quad to extract the data from.
 	 * @return the map of column name to data
@@ -208,7 +210,7 @@ public class QueryPattern {
 
 	/**
 	 * Get the query filter used to filter results if needed.
-	 * 
+	 *
 	 * @return the QueryFilter.
 	 */
 	public Predicate<Quad> getQueryFilter() {
@@ -219,7 +221,7 @@ public class QueryPattern {
 	 * Get the where clause for the table. The where clause for the table must
 	 * not skip any column names in the key, so this method returns a clause
 	 * that only includes the contiguous segments from the key.
-	 * 
+	 *
 	 * @param tableName
 	 *            The table to create a where clause for.
 	 * @return the where clause as a string builder.
@@ -235,7 +237,7 @@ public class QueryPattern {
 
 	/**
 	 * Execute a find on the database.
-	 * 
+	 *
 	 * @param keyspace
 	 *            The keyspace to query.
 	 * @return An ExtendedIterator over the quads.
@@ -246,7 +248,7 @@ public class QueryPattern {
 
 	/**
 	 * Execute a find on the database.
-	 * 
+	 *
 	 * @param keyspace
 	 *            The keyspace to query.
 	 * @param extraWhere
@@ -259,7 +261,7 @@ public class QueryPattern {
 
 	/**
 	 * Execute a find on the database.
-	 * 
+	 *
 	 * @param keyspace
 	 *            The keyspace to query.
 	 * @param extraWhere
@@ -355,7 +357,7 @@ public class QueryPattern {
 
 	/**
 	 * Checks to see if the quad exists in the database.
-	 * 
+	 *
 	 * @param keyspace
 	 *            the keyspace to check
 	 * @return True the quad is in the database, false otherwise.
@@ -374,7 +376,7 @@ public class QueryPattern {
 	 * where clause for the table must not skip any column names in the key, so
 	 * this method returns a clause that only includes the contiguous segments
 	 * from the key.
-	 * 
+	 *
 	 * @return The where clause.
 	 * @throws TException
 	 *             on serialization error.
@@ -385,7 +387,7 @@ public class QueryPattern {
 
 	/**
 	 * Returns true if the table query needs a filter.
-	 * 
+	 *
 	 * @param tableName
 	 *            the table name to check.
 	 * @return true if the table name needs a filter.
@@ -423,7 +425,7 @@ public class QueryPattern {
 
 	/**
 	 * Delete the row(s) from the database.
-	 * 
+	 *
 	 * @param keyspace
 	 *            The keyspace to delete from.
 	 */
@@ -432,11 +434,11 @@ public class QueryPattern {
 		{
 			connection.truncateTables( keyspace );
 		}
-		else 
+		else
 		{
-		
+
 			Iterator<String> statements = doFind(keyspace).mapWith( new Function<Quad,String>(){
-	
+
 				@Override
 				public String apply(Quad quad) {
 					try {
@@ -447,7 +449,7 @@ public class QueryPattern {
 					}
 				}}).filterDrop( new FindNull<String>());
 			connection.executeUpdateSet(keyspace, statements);
-		
+
 		}
 
 	}
@@ -455,7 +457,7 @@ public class QueryPattern {
 	/**
 	 * Get a count of the triples that match the pattern for this table in the
 	 * specified keyspace.
-	 * 
+	 *
 	 * @param keyspace
 	 *            the keyspace to query.
 	 * @return The count as a long
@@ -516,21 +518,21 @@ public class QueryPattern {
 					sb.append(colName.getInsertValue(connection, queryInfo.values.get(colName)));
 					first = false;
 				}
-				return sb.append(");").toString();		
+				return sb.append(");").toString();
 			}}).iterator();
 	}
 
 	/**
 	 * Performs the insert of the data.
-	 * 
+	 *
 	 * @param keyspace
 	 *            The keyspace for the table.
 	 * @throws TException
 	 *             on encoding error.
-	 * @throws ExecutionException 
-	 * @throws InterruptedException 
+	 * @throws ExecutionException
+	 * @throws InterruptedException
 	 */
-	public void doInsert(String keyspace) throws TException, InterruptedException, ExecutionException {				
+	public void doInsert(String keyspace) throws TException, InterruptedException, ExecutionException {
 		connection.executeUpdateSet(keyspace, getInsertStatement());
 	}
 
@@ -559,7 +561,11 @@ public class QueryPattern {
 	 */
 	public static class RowToQuad implements Function<Row, Quad> {
 
-		private TDeserializer dser = new TDeserializer();
+        private final TDeserializer dser;
+
+        public RowToQuad() throws TTransportException {
+            dser = new TDeserializer();
+        }
 
 		@Override
 		public Quad apply(Row row) {
@@ -601,9 +607,13 @@ public class QueryPattern {
 	 */
 	public static class RowToNode implements Function<Row, Node> {
 
-		private TDeserializer dser = new TDeserializer();
+		private final TDeserializer dser;;
 
-		@Override
+		public RowToNode() throws TTransportException {
+		    dser = new TDeserializer();
+        }
+
+        @Override
 		public Node apply(Row t) {
 
 			RDF_Term node = new RDF_Term();
@@ -631,7 +641,7 @@ public class QueryPattern {
 
 	/**
 	 * Basic language filter.
-	 * 
+	 *
 	 * Basic filtering compares basic language ranges to language tags. Each
 	 * basic language range in the language priority list is considered in turn,
 	 * according to priority. A language range matches a particular language tag
@@ -642,13 +652,13 @@ public class QueryPattern {
 	 * as used in Germany, orthography of 1996), but not the language tags
 	 * "de-Deva" (German as written in the Devanagari script) or "de-Latn-DE"
 	 * (German, Latin script, as used in Germany).
-	 * 
+	 *
 	 * The special range "*" in a language priority list matches any tag. A
 	 * protocol that uses language ranges MAY specify additional rules about the
 	 * semantics of "*"; for instance, HTTP/1.1 [RFC2616] specifies that the
 	 * range "*" matches only languages not matched by any other range within an
 	 * "Accept-Language" header.
-	 * 
+	 *
 	 * Basic filtering is identical to the type of matching described in
 	 * [RFC3066], Section 2.5 (Language-range).
 	 *
@@ -704,7 +714,7 @@ public class QueryPattern {
 		/**
 		 * Set the where clause for this query. Adds where text to the query
 		 * text.
-		 * 
+		 *
 		 * @param whereClause
 		 *            The where clause to use
 		 */
@@ -760,7 +770,7 @@ public class QueryPattern {
 		/**
 		 * Builds the where clause for a query based on the table name, the quad
 		 * we are looking for and any extra values.
-		 * 
+		 *
 		 * @return A WhereClause object that contains the constructed where clause.
 		 * @throws TException
 		 *             on encoding error.
@@ -768,19 +778,19 @@ public class QueryPattern {
 		public WhereClause getWhereClause() throws TException {
 			/*
 			 * Cassandra queries have some particular requirements:
-			 * 
+			 *
 			 * 1. the primary key must be specified. If it is not specified then
 			 * token( col ) > Long.MIN_VALUE will return all the values
-			 * 
+			 *
 			 * 2. the rest of the key columns do not have to be specified except
 			 * that if a key segment has a value all earlier segments must also
 			 * have values.
-			 * 
+			 *
 			 * To handle the case where a previous key segment is missing we
 			 * will stop at the first missing segment. If there are any further
 			 * specified segments we will use a result filter to properly filter
 			 * them
-			 * 
+			 *
 			 */
 
 			WhereClause retval = new WhereClause();
@@ -901,7 +911,7 @@ public class QueryPattern {
 		}
 
 		/**
-		 * 
+		 *
 		 * A where clause for a query. This contains the where text and a flag
 		 * to indicate that a filter is required as the where clause is not
 		 * specific enough.

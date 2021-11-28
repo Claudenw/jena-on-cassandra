@@ -28,6 +28,7 @@ import org.apache.jena.graph.NodeFactory;
 import org.apache.jena.graph.impl.LiteralLabelFactory;
 import org.apache.jena.sparql.core.Quad;
 import org.apache.thrift.TException;
+import org.apache.thrift.transport.TTransportException;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -38,7 +39,7 @@ import static org.mockito.Mockito.*;
 
 /**
  * Test the query pattern generator.
- * 
+ *
  * "Where" specific tests are in the QueryInfoTest.
  *
  */
@@ -98,11 +99,11 @@ public class QueryPatternTest {
 	}
 
 	@Before
-	public void setup() {
+	public void setup() throws TTransportException {
 		Cluster cluster = mock(Cluster.class);
 		Session session = mock(Session.class);
 		when(cluster.connect()).thenReturn(session);
-		connection = new CassandraConnection(cluster);
+		connection = new CassandraConnection(cluster,null);
 	}
 
 	@Test

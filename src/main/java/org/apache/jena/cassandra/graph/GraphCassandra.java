@@ -61,13 +61,13 @@ public class GraphCassandra extends GraphBase {
 	private static final Log LOG = LogFactory.getLog(GraphCassandra.class);
 
 	/**
-	 * Constructor. 
-	 * 
+	 * Constructor.
+	 *
 	 * <ul>
 	 * <li>A null graph name is considered as the default graph. e.g. urn:x-arq:DefaultGraph</li>
 	 * <li>Node.ANY graph name is condiderd as the Union graph. e.g. urn:x-arq:UnionGraph</li>
 	 * </ul>
-	 * 
+	 *
 	 * @param graph
 	 *            The name of the graph.
 	 * @param keyspace
@@ -89,7 +89,7 @@ public class GraphCassandra extends GraphBase {
 
 	/**
 	 * Constructor. Creates Union graph.
-	 * 
+	 *
 	 * @param keyspace
 	 *            The keyspace to used.
 	 * @param connection
@@ -101,7 +101,7 @@ public class GraphCassandra extends GraphBase {
 
 	/**
 	 * Get the graph name. May be Node.ANY
-	 * 
+	 *
 	 * @return The graph name.
 	 */
 	public Node getGraphName() {
@@ -137,7 +137,7 @@ public class GraphCassandra extends GraphBase {
 		pattern.doDelete(keyspace);
 
 	}
-	
+
 	@Override
 	public void remove(Node s, Node p, Node o)
 	{
@@ -165,20 +165,7 @@ public class GraphCassandra extends GraphBase {
 	public Capabilities getCapabilities() {
 		if (capabilities == null)
 			capabilities = new AllCapabilities() {
-				@Override
-				public boolean addAllowed(boolean every) {
-					return !graph.equals(Node.ANY);
-				}
-
-				@Override
-				public boolean deleteAllowed(boolean every) {
-					return !graph.equals(Node.ANY);
-				}
-
-				@Override
-				public boolean iteratorRemoveAllowed() {
-					return false;
-				}
+				// TODO change graphBaseSize() use JMX.
 			};
 		return capabilities;
 	}
@@ -191,14 +178,8 @@ public class GraphCassandra extends GraphBase {
 
 	@Override
 	protected int graphBaseSize() {
-		QueryPattern pattern = new QueryPattern(connection, graph, Triple.ANY);
-		try {
-			long retval = pattern.getCount(keyspace);
-			return retval > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) retval;
-		} catch (TException e) {
-			LOG.error("Error building where clause", e);
-			return -1;
-		}
+	    long retval = connection.estimateTableSize(keyspace, graph);
+	    return retval > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int)retval;
 	}
 
 	@Override

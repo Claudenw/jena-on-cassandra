@@ -26,18 +26,21 @@ import org.apache.jena.assembler.Mode;
 import org.apache.jena.assembler.assemblers.AssemblerBase;
 import org.apache.jena.cassandra.graph.CassandraConnection;
 import org.apache.jena.cassandra.graph.GraphCassandra;
+import org.apache.jena.cassandra.graph.CassandraConnection.NodeProbeConfig;
 import org.apache.jena.graph.Graph;
 import org.apache.jena.rdf.model.Model;
 import org.apache.jena.rdf.model.ModelFactory;
 import org.apache.jena.rdf.model.Resource;
+import org.apache.thrift.transport.TTransportException;
+
 import com.datastax.driver.core.Cluster;
 
 /**
  * Assember to construct Models from a Cassandra Cluster and a keyspace.
- * 
+ *
  * If a graphName is provided it will be used as the model, otherwise the
  * default graph is used.
- * 
+ *
  *
  */
 public class CassandraModelAssembler extends AssemblerBase implements Assembler {
@@ -60,11 +63,16 @@ public class CassandraModelAssembler extends AssemblerBase implements Assembler 
 		Resource graphName = getResourceValue(root, VocabCassandra.graphName);
 
 		Cluster cluster = CassandraClusterAssembler.getCluster(root, clusterName);
+        NodeProbeConfig nodeProbeConfig = CassandraNodeProbeAssembler.getNodeProbeConfig(root, clusterName );
 
-		CassandraConnection connection = new CassandraConnection(cluster);
+		try {
+            CassandraConnection connection = new CassandraConnection(cluster, nodeProbeConfig);
 
-		Graph g = new GraphCassandra((graphName == null ? null : graphName.asNode()), keyspace, connection);
-		return ModelFactory.createModelForGraph(g);
+            Graph g = new GraphCassandra((graphName == null ? null : graphName.asNode()), keyspace, connection);
+            return ModelFactory.createModelForGraph(g);
+        } catch (TTransportException e) {
+            throw new IllegalStateException( "Unable to create CassandraConnection", e );
+        }
 
 	}
 

@@ -34,12 +34,14 @@ import org.apache.commons.io.IOUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.jena.cassandra.assembler.CassandraClusterAssembler;
+import org.apache.jena.cassandra.assembler.CassandraNodeProbeAssembler;
+import org.apache.jena.cassandra.graph.CassandraConnection.NodeProbeConfig;
 import org.apache.jena.ext.com.google.common.io.Files;
 import com.datastax.driver.core.Cluster;
 
 /**
  * A class to properly setup the testing Cassandra instance.
- * 
+ *
  * This is a cassandra instance that runs in a temp directory and is destroyed
  * at the end of testing.
  *
@@ -53,10 +55,11 @@ public class CassandraSetup {
 	private static final Log LOG = LogFactory.getLog(CassandraSetup.class);
 	private final static String YAML_FMT = "%n%s: %s%n";
 	private Cluster cluster;
+	private NodeProbeConfig nodeProbeConfig;
 
 	/**
 	 * Constructor.
-	 * 
+	 *
 	 * @throws IOException
 	 *             on IO error
 	 * @throws InterruptedException
@@ -65,20 +68,25 @@ public class CassandraSetup {
 	public CassandraSetup() throws IOException, InterruptedException {
 		setupCassandraDaemon();
 		cluster = CassandraClusterAssembler.getCluster("testing", "localhost", sslStoragePort);
+		nodeProbeConfig = CassandraNodeProbeAssembler.getNodeProbeConfig("testing", "localhost", NodeProbeConfig.DEFAULT_PORT, false);
 	}
 
 	/**
 	 * Get the cluster for this setup.
-	 * 
+	 *
 	 * @return the cluster.
 	 */
 	public Cluster getCluster() {
 		return cluster;
 	}
 
+	public NodeProbeConfig getNodeProbeConfig() {
+	    return nodeProbeConfig;
+	}
+
 	/**
 	 * Set up the daemon or detect that it is already running.
-	 * 
+	 *
 	 * @throws IOException
 	 * @throws InterruptedException
 	 */
@@ -112,7 +120,7 @@ public class CassandraSetup {
 			yamlOut.write(String.format(YAML_FMT, "ssl_storage_port", sslStoragePort).getBytes());
 
 			nativePort = ports[2];
-			yamlOut.write(String.format(YAML_FMT, "native_transport_port", sslStoragePort).getBytes());
+			yamlOut.write(String.format(YAML_FMT, "native_transport_port", nativePort).getBytes());
 
 			yamlOut.flush();
 			yamlOut.close();
@@ -206,7 +214,7 @@ public class CassandraSetup {
 	/**
 	 * get the temp directory used by this setup. This is where all the data for
 	 * the instance is stored.
-	 * 
+	 *
 	 * @return The temp directory.
 	 */
 	public File getTempDir() {
@@ -215,7 +223,7 @@ public class CassandraSetup {
 
 	/**
 	 * get the port that cassandra is using for the storage engine.
-	 * 
+	 *
 	 * @return the port for the storage engine.
 	 */
 	public int getStoragePort() {
@@ -224,7 +232,7 @@ public class CassandraSetup {
 
 	/**
 	 * get the port that cassandra is using for the ssl storage engine.
-	 * 
+	 *
 	 * @return the port for the ssl storage engine.
 	 */
 	public int getSslStoragePort() {
@@ -233,7 +241,7 @@ public class CassandraSetup {
 
 	/**
 	 * get the port that cassandra is using for the native interface.
-	 * 
+	 *
 	 * @return the port for the native interface.
 	 */
 	public int getNativePort() {

@@ -24,11 +24,14 @@ import org.apache.jena.assembler.Assembler;
 import org.apache.jena.assembler.Mode;
 import org.apache.jena.assembler.assemblers.AssemblerBase;
 import org.apache.jena.cassandra.graph.CassandraConnection;
+import org.apache.jena.cassandra.graph.CassandraConnection.NodeProbeConfig;
 import org.apache.jena.cassandra.graph.DatasetGraphCassandra;
 import org.apache.jena.query.Dataset;
 import org.apache.jena.rdf.model.Resource;
 import org.apache.jena.sparql.core.DatasetGraph;
 import org.apache.jena.sparql.core.DatasetImpl;
+import org.apache.thrift.transport.TTransportException;
+
 import com.datastax.driver.core.Cluster;
 
 /**
@@ -49,10 +52,15 @@ public class CassandraDatasetAssembler extends AssemblerBase implements Assemble
 		String clusterName = getStringValue(root, VocabCassandra.useCluster);
 
 		Cluster cluster = CassandraClusterAssembler.getCluster(root, clusterName);
+		NodeProbeConfig nodeProbeConfig = CassandraNodeProbeAssembler.getNodeProbeConfig(root, clusterName );
 
-		CassandraConnection connection = new CassandraConnection(cluster);
-		DatasetGraph dsg = new DatasetGraphCassandra(keyspace, connection);
+		try {
+            CassandraConnection connection = new CassandraConnection(cluster, nodeProbeConfig);
+            DatasetGraph dsg = new DatasetGraphCassandra(keyspace, connection);
 
-		return DatasetImpl.wrap(dsg);
+            return DatasetImpl.wrap(dsg);
+        } catch (TTransportException e) {
+            throw new IllegalStateException( "Unable to create CassandraConnection", e );
+        }
 	}
 }

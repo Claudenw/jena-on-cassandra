@@ -18,6 +18,7 @@
 
 package org.apache.jena.cassandra.graph;
 
+import java.util.Collections;
 import java.util.Iterator;
 
 import org.apache.commons.logging.Log;
@@ -29,11 +30,16 @@ import org.apache.jena.graph.GraphUtil;
 import org.apache.jena.graph.Node;
 import org.apache.jena.graph.Triple;
 import org.apache.jena.query.ReadWrite;
+import org.apache.jena.query.TxnType;
+import org.apache.jena.riot.system.PrefixMap;
+import org.apache.jena.riot.system.PrefixMapZero;
+import org.apache.jena.sparql.JenaTransactionException;
 import org.apache.jena.sparql.core.DatasetGraphBase;
 import org.apache.jena.sparql.core.Quad;
 import org.apache.jena.util.iterator.NiceIterator;
 import org.apache.jena.util.iterator.WrappedIterator;
 import org.apache.thrift.TException;
+import org.apache.thrift.transport.TTransportException;
 
 import com.datastax.driver.core.ResultSet;
 
@@ -63,7 +69,7 @@ public class DatasetGraphCassandra extends DatasetGraphBase {
 
 	/**
 	 * Constructor.
-	 * 
+	 *
 	 * @param keyspace
 	 *            The Cassandra keyspace to query.
 	 * @param connection
@@ -81,8 +87,13 @@ public class DatasetGraphCassandra extends DatasetGraphBase {
 				CassandraConnection.getTable(GRAPH_TABLE), Long.MIN_VALUE);
 		LOG.debug(query);
 		ResultSet rs = connection.getSession(keyspace).execute(query);
+		try {
 		return WrappedIterator.create(rs.iterator()).mapWith(new RowToNode()).filterDrop(new FindNull<Node>()).toSet()
 				.iterator();
+		} catch (TTransportException e) {
+		    LOG.error( "Error reading table", e );
+		    return Collections.emptyListIterator();
+		}
 	}
 
 	@Override
@@ -202,8 +213,33 @@ public class DatasetGraphCassandra extends DatasetGraphBase {
 	@Override
 	public void deleteAny(Node g, Node s, Node p, Node o) {
 		Quad q = new Quad( g, s==null?Node.ANY:s, p==null?Node.ANY:p, o==null?Node.ANY:o );
-		QueryPattern pattern = new QueryPattern(connection, q);	
-		pattern.doDelete(keyspace);	
+		QueryPattern pattern = new QueryPattern(connection, q);
+		pattern.doDelete(keyspace);
 	}
+
+    @Override
+    public PrefixMap prefixes() {
+        return PrefixMapZero.empty;
+    }
+
+    @Override
+    public void begin(TxnType type) {
+        throw new JenaTransactionException( "Transactions not supported");
+    }
+
+    @Override
+    public boolean promote(Promote mode) {
+        return false;
+    }
+
+    @Override
+    public ReadWrite transactionMode() {
+        return null;
+    }
+
+    @Override
+    public TxnType transactionType() {
+        return null;
+    }
 
 }

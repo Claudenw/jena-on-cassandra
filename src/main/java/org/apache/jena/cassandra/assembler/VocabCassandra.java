@@ -39,6 +39,10 @@ public class VocabCassandra {
 	public static final Property ssl = ResourceFactory.createProperty(NS, "ssl");
 	public static final Property name = ResourceFactory.createProperty(NS, "name");
 
+    public static final Resource NodeProbeConfig = ResourceFactory.createResource(NS + "NodeProbeConfig");
+    public static final Property jmx = ResourceFactory.createProperty(NS, "jmx");
+
+
 	public static final Resource Dataset = ResourceFactory.createResource(NS + "Dataset");
 
 	public static final Property useCluster = ResourceFactory.createProperty(NS, "useCluster");

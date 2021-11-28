@@ -24,17 +24,22 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 import org.apache.jena.assembler.Assembler;
+import org.apache.jena.cassandra.assembler.CassandraNodeProbeAssembler;
 import org.apache.jena.cassandra.assembler.VocabCassandra;
+import org.apache.jena.cassandra.graph.CassandraConnection.NodeProbeConfig;
 import org.apache.jena.rdf.model.ModelFactory;
+import org.apache.jena.rdf.model.Property;
 import org.apache.jena.rdf.model.Resource;
+import org.apache.jena.rdf.model.Statement;
 import org.apache.jena.riot.RDFDataMgr;
 import org.apache.jena.vocabulary.RDF;
+import org.apache.thrift.transport.TTransportException;
 
 import com.datastax.driver.core.Cluster;
 
 /**
  * Class to bulk load data.
- * 
+ *
  * Options must be prefixed by dash (-)
  * <dl>
  * <dt>addr</dt>
@@ -59,9 +64,9 @@ import com.datastax.driver.core.Cluster;
  * <dt>keyspace</dt>
  * <dd>The keyspace within th Cassandra server to store tables in.</dd>
  * </dl>
- * 
+ *
  * All other command line options are considered to be URLs to load data from.
- * 
+ *
  * The BulkLoader will load data in parallel from up to 4 URLs at a time.
  */
 public class BulkLoader {
@@ -85,10 +90,16 @@ public class BulkLoader {
 	private static String METRICS = "metrics";
 	private static String SSL = "ssl";
 	private static String KEYSPACE = "keyspace";
+	private static String JMX_ADDR = "jmx."+ADDR;
+    private static String JMX_PORT = "jmx."+PORT;
+    private static String JMX_USER = "jmx."+USER;
+    private static String JMX_PWD = "jmx."+PWD;
+
+
 
 	/**
 	 * Main executable.
-	 * 
+	 *
 	 * Options must be prefixed by dash (-)
 	 * <dl>
 	 * <dt>addr</dt>
@@ -113,21 +124,21 @@ public class BulkLoader {
 	 * <dt>keyspace</dt>
 	 * <dd>The keyspace within th Cassandra server to store tables in.</dd>
 	 * </dl>
-	 * 
+	 *
 	 * All other command line options are considered to be URLs to load data
 	 * from. Triple data is loaded into the default graph, quad data is loaded
 	 * into the graph specified by the quad.
-	 * 
+	 *
 	 * @param args
 	 *            The arguments.
+	 * @throws TTransportException
 	 * @throws IllegalArgumentException
 	 *             if an argument is not understood.
 	 */
-	public static void main(String[] args) {
+	public static void main(String[] args) throws TTransportException {
 		Resource cfg = ModelFactory.createMemModelMaker().createDefaultModel().createResource();
 		cfg.addProperty(RDF.type, VocabCassandra.Cluster);
 		cfg.addProperty(VocabCassandra.name, "BulkLoader");
-		Resource cred = null;
 		List<String> urls = new ArrayList<String>();
 		String keyspace = null;
 
@@ -147,16 +158,9 @@ public class BulkLoader {
 				} else if (COMP.equals(name)) {
 					cfg.addLiteral(VocabCassandra.compression, args[i]);
 				} else if (USER.equals(name)) {
-					if (cred == null) {
-						cred = createCred(cfg);
-					}
-					cred.addLiteral(VocabCassandra.user, args[i]);
-
+				    getCred(cfg).addLiteral(VocabCassandra.user, args[i]);
 				} else if (PWD.equals(name)) {
-					if (cred == null) {
-						cred = createCred(cfg);
-					}
-					cred.addLiteral(VocabCassandra.password, args[i]);
+				    getCred(cfg).addLiteral(VocabCassandra.password, args[i]);
 				} else if (METRICS.equals(name)) {
 					cfg.addLiteral(VocabCassandra.metrics, args[i]);
 				} else if (SSL.equals(name)) {
@@ -164,6 +168,14 @@ public class BulkLoader {
 
 				} else if (KEYSPACE.equals(name)) {
 					keyspace = args[i];
+				} else if (JMX_ADDR.equals(name)) {
+				    getJmx(cfg).addLiteral(VocabCassandra.address, args[i]);
+				} else if (JMX_PORT.equals(name)) {
+				    getJmx(cfg).addLiteral(VocabCassandra.port, args[i]);
+				} else if (JMX_USER.equals(name)) {
+				    getCred( getJmx(cfg) ).addLiteral(VocabCassandra.user, args[i]);
+				} else if (JMX_PWD.equals(name)) {
+                getCred( getJmx(cfg) ).addLiteral(VocabCassandra.password, args[i]);
 				} else {
 					throw new IllegalArgumentException(String.format("unknown options -%s", name));
 				}
@@ -177,19 +189,34 @@ public class BulkLoader {
 			throw new IllegalArgumentException("-keyspace must be defined");
 		}
 		Cluster cluster = (Cluster) Assembler.general.open(cfg);
-		CassandraConnection connection = new CassandraConnection(cluster);
+		CassandraNodeProbeAssembler nodeProbeAssembler = new CassandraNodeProbeAssembler();
+        NodeProbeConfig nodeProbeConfig = (NodeProbeConfig) nodeProbeAssembler.open(cfg);
+
+		CassandraConnection connection = new CassandraConnection(cluster, nodeProbeConfig);
 		execute(connection, keyspace, urls);
 	}
 
-	private static Resource createCred(Resource cfg) {
-		Resource cred = cfg.getModel().createResource();
-		cfg.addProperty(VocabCassandra.credentials, cred);
-		return cred;
+	private static Resource getProperty(Resource cfg, Property prop ) {
+        Statement stmt = cfg.getProperty(prop);
+        if (stmt != null) {
+            return stmt.getObject().asResource();
+        }
+        Resource jmx = cfg.getModel().createResource();
+        cfg.addProperty( prop, jmx );
+        return jmx;
+    }
+
+	private static Resource getCred(Resource cfg) {
+	    return getProperty( cfg, VocabCassandra.credentials );
+	}
+
+	private static Resource getJmx(Resource cfg) {
+	    return  getProperty( cfg, VocabCassandra.jmx);
 	}
 
 	/**
 	 * Execute a load from a number of URLs.
-	 * 
+	 *
 	 * @param connection
 	 *            The Cassandra connection to use.
 	 * @param keyspace

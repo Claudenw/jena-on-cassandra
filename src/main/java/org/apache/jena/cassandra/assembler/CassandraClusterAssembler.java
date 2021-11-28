@@ -29,6 +29,7 @@ import org.apache.jena.assembler.Assembler;
 import org.apache.jena.assembler.Mode;
 import org.apache.jena.assembler.assemblers.AssemblerBase;
 import org.apache.jena.assembler.exceptions.AssemblerException;
+import org.apache.jena.cassandra.graph.CassandraConnection;
 import org.apache.jena.query.ARQ;
 import org.apache.jena.rdf.model.Model;
 import org.apache.jena.rdf.model.Property;
@@ -45,7 +46,7 @@ import com.datastax.driver.core.ProtocolOptions.Compression;
 /**
  * An assembler for the Cassandra Clusters. This assembler ensures that the
  * loaded clusters are shut down when the JVM exits.
- * 
+ *
  * Clusters should only be constructed once. To ensure this the constructed
  * objects are placed in the ARQ context.
  *
@@ -60,80 +61,48 @@ public class CassandraClusterAssembler extends AssemblerBase implements Assemble
 	// joc:port port ;
 	// joc:compression "snappy | lz4 "
 	// joc:credentials [ joc:user "username" ;
-	// joc:password "passeord" ];
+	// joc:password "password" ];
 	// joc:metrics "true"
 	// joc:ssl "true"
 
 	@Override
 	public Cluster open(Assembler a, Resource root, Mode mode) {
-		if (!exactlyOneProperty(root, VocabCassandra.name)) {
-			throw new AssemblerException(root,
-					String.format("%s must be specified", VocabCassandra.name.getLocalName()));
-		}
 
-		String name = getStringValue(root, VocabCassandra.name);
+		String name = CassandraOptionsParser.parseName(root);
 
 		Cluster.Builder builder = Cluster.builder().withClusterName(name);
 
-		for (String address : multiValueString(root, VocabCassandra.address)) {
-			builder.addContactPoint(address);
-		}
+		CassandraOptionsParser.parseAddress(root, builder::addContactPoints );
 		if (builder.getContactPoints().isEmpty()) {
 			throw new AssemblerException(root,
 					String.format("At least on %s must be specified", VocabCassandra.address.getLocalName()));
 		}
 
-		String port = getStringValue(root, VocabCassandra.port);
-		if (port != null) {
-			try {
-				int p = Integer.valueOf(port);
-				builder.withPort(p);
-			} catch (NumberFormatException e) {
-				throw new AssemblerException(root, String.format("Port (%s) must be a number", port));
-			}
-		}
+		CassandraOptionsParser.parsePort(root, builder::withPort);
+
 
 		String compression = getStringValue(root, VocabCassandra.compression);
 		if (compression != null) {
 			Compression comp = Compression.valueOf(compression.toUpperCase());
 			if (comp == null) {
 				throw new AssemblerException(root,
-						String.format("Compression (%s) must be 'snappy' or 'lz4' or not specified", port));
+						String.format("Compression (%s) must be 'snappy' or 'lz4' or not specified", compression));
 
 			} else {
 				builder.withCompression(comp);
 			}
 		}
 
-		if (!atmostOneProperty(root, VocabCassandra.credentials)) {
-			throw new AssemblerException(root,
-					String.format("At most one %s may be specified", VocabCassandra.credentials.getLocalName()));
-		}
-
-		Resource credentials = getResourceValue(root, VocabCassandra.credentials);
-		if (credentials != null) {
-			String username = getStringValue(credentials, VocabCassandra.user);
-			if (username == null) {
-				throw new AssemblerException(root, String.format("If %s is specified %s must be specified",
-						VocabCassandra.credentials.getLocalName(), VocabCassandra.user.getLocalName()));
-			}
-			String password = getStringValue(credentials, VocabCassandra.password);
-			if (password == null) {
-				throw new AssemblerException(root, String.format("If %s is specified %s must be specified",
-						VocabCassandra.credentials.getLocalName(), VocabCassandra.password.getLocalName()));
-			}
-			builder.withCredentials(username, password);
-		}
+		CassandraOptionsParser.parseCredentials(root, builder::withCredentials);
 
 		String metrics = getStringValue(root, VocabCassandra.metrics);
 		if (metrics != null && ! Boolean.valueOf(metrics))
 			{
-					builder.withoutMetrics();		
+					builder.withoutMetrics();
 		}
 
-		String ssl = getStringValue(root, VocabCassandra.ssl);
-		if (ssl != null && Boolean.valueOf(ssl)) {
-			builder.withSSL();
+		if (CassandraOptionsParser.parseSSL(root)) {
+		    builder.withSSL();
 		}
 
 		return register(builder.build(), name);
@@ -164,10 +133,10 @@ public class CassandraClusterAssembler extends AssemblerBase implements Assemble
 
 	/**
 	 * Get cluster named "clusterName" or build it from the root.
-	 * 
+	 *
 	 * If a cluster with the cluster name has already been loaded return it,
 	 * otherwise build it from the model attached to the reasource.
-	 * 
+	 *
 	 * @param root
 	 *            The root resource for the building of the cluster.
 	 * @param clusterName
@@ -199,10 +168,10 @@ public class CassandraClusterAssembler extends AssemblerBase implements Assemble
 
 	/**
 	 * Get a cluster with the specified name.
-	 * 
+	 *
 	 * If a cluster with the cluster name has already been loaded return it,
 	 * otherwise build it from the contactPoint and port.
-	 * 
+	 *
 	 * @param clusterName
 	 *            the cluster name.
 	 * @param contactPoint

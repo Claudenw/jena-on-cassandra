@@ -21,12 +21,21 @@
 # Make a cluster
     ex:cluster 	rdf:type 	joc:Cluster ;
 	joc:name 	"testCluster" ;
-    joc:address 	"localhost" ;
+    	joc:address 	"localhost" ;
 	joc:port 	9090 ;
 	joc:compression "snappy" ;
 	joc:credentials [ 
 		joc:user "username" ;
-		joc:password "passeord" ];
+		joc:password "password" 
+	];
 	joc:metrics 	"true";
 	joc:ssl 	"true";
+	joc:jmx [
+		joc:user "username" ;
+		joc:password "password";
+		joc:port  "7199" ;
+		joc:address "127.0.0.1";
+	];	
 	.
+	
+    	

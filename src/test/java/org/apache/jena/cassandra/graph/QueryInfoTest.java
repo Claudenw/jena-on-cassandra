@@ -28,6 +28,7 @@ import org.apache.jena.graph.Triple;
 import org.apache.jena.graph.impl.LiteralLabelFactory;
 import org.apache.jena.sparql.core.Quad;
 import org.apache.thrift.TException;
+import org.apache.thrift.transport.TTransportException;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -71,11 +72,11 @@ public class QueryInfoTest {
 	private QueryPattern pattern;
 
 	@Before
-	public void setup() {
+	public void setup() throws TTransportException {
 		Cluster cluster = mock(Cluster.class);
 		Session session = mock(Session.class);
 		when(cluster.connect()).thenReturn(session);
-		CassandraConnection connection = new CassandraConnection(cluster);
+		CassandraConnection connection = new CassandraConnection(cluster,null);
 		pattern = new QueryPattern(connection, new Quad(Node.ANY, Triple.ANY));
 	}
 

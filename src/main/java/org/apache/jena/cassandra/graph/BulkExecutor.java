@@ -21,8 +21,10 @@ import java.util.Iterator;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+
 import com.datastax.driver.core.ResultSetFuture;
 import com.datastax.driver.core.Session;
 
@@ -53,7 +55,7 @@ public class BulkExecutor {
 
 	/**
 	 * Constructor.
-	 * 
+	 *
 	 * @param session
 	 *            The Cassandra session to use.
 	 */
@@ -65,7 +67,7 @@ public class BulkExecutor {
 	/**
 	 * Set the logging. Used when another class uses the bulk executor and wants
 	 * to capture the logging.
-	 * 
+	 *
 	 * @param log
 	 *            The log for this BulkExecutor to log to.
 	 */
@@ -75,15 +77,15 @@ public class BulkExecutor {
 
 	/**
 	 * Execute a number of statements.
-	 * 
+	 *
 	 * All output from the statements are discarded.
-	 * 
+	 *
 	 * Statement order is not guaranteed.
-	 * 
+	 *
 	 * May be called multiple times. May not be called after awaitFinish().
-	 * 
+	 *
 	 * @see awaitFinish
-	 * 
+	 *
 	 * @param statements
 	 *            An iterator of statements to execute.
 	 */

@@ -67,7 +67,7 @@ public class TestGraphCassandra {
 	@Before
 	public void setupTestGraphCassandra()
 			throws ConfigurationException, TTransportException, IOException, InterruptedException {
-		connection = new CassandraConnection( cassandra.getCluster());
+		connection = new CassandraConnection( cassandra.getCluster(), cassandra.getNodeProbeConfig());
 		connection.createKeyspace(String.format(
 						"CREATE KEYSPACE IF NOT EXISTS %s WITH REPLICATION = { 'class' : 'SimpleStrategy', 'replication_factor' : 1 }",
 						KEYSPACE));

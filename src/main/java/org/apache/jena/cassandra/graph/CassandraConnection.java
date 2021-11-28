@@ -19,24 +19,51 @@
 package org.apache.jena.cassandra.graph;
 
 import java.io.Closeable;
+import java.io.IOException;
+import java.net.MalformedURLException;
+import java.rmi.server.RMIClientSocketFactory;
+import java.rmi.server.RMISocketFactory;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
+import java.util.Random;
+import java.util.Set;
 import java.util.function.Function;
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
+import javax.management.remote.JMXConnector;
+import javax.management.remote.JMXConnectorFactory;
+import javax.management.remote.JMXServiceURL;
+import javax.rmi.ssl.SslRMIClientSocketFactory;
+
+import org.apache.cassandra.tools.NodeProbe;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.apache.jena.assembler.Assembler;
+import org.apache.jena.assembler.exceptions.AssemblerException;
+import org.apache.jena.cassandra.assembler.VocabCassandra;
 import org.apache.jena.graph.Node;
+import org.apache.jena.graph.Triple;
+import org.apache.jena.query.ARQ;
+import org.apache.jena.rdf.model.Model;
+import org.apache.jena.rdf.model.Resource;
 import org.apache.jena.riot.thrift.ThriftConvert;
 import org.apache.jena.riot.thrift.wire.RDF_Term;
 import org.apache.jena.sparql.core.Quad;
+import org.apache.jena.sparql.util.Symbol;
 import org.apache.jena.util.iterator.ExtendedIterator;
 import org.apache.jena.util.iterator.WrappedIterator;
+import org.apache.jena.vocabulary.RDF;
 import org.apache.thrift.TException;
 import org.apache.thrift.TSerializer;
+import org.apache.thrift.transport.TTransportException;
 
 import com.datastax.driver.core.Cluster;
 import com.datastax.driver.core.ResultSet;
@@ -45,305 +72,426 @@ import com.datastax.driver.core.Session;
 import com.datastax.driver.core.exceptions.QueryValidationException;
 import com.datastax.driver.core.utils.Bytes;
 
+
 /**
- * 
+ *
  * Handles the Cassandra cluster connection and table definitions.
- * 
+ *
  * This class also manages the sessions for each keyspace.
- * 
+ *
  * Tables are identified by ID or name.
- * 
+ *
  *
  */
 public class CassandraConnection implements Closeable {
 
-	private static final Log LOG = LogFactory.getLog(CassandraConnection.class);
+    private static final Log LOG = LogFactory.getLog(CassandraConnection.class);
 
-	/*
-	 * Map table IDs to names.
-	 */
-	private static final Map<String, TableName> TABLE_MAP = new HashMap<String, TableName>();
+    /*
+     * Map table IDs to names.
+     */
+    private static final Map<String, TableName> TABLE_MAP = new HashMap<String, TableName>();
 
-	/*
-	 * List of tables named by key order
-	 */
-	public static final TableName SPOG = new TableName("SPOG");
-	public static final TableName PGOS = new TableName("PGOS");
-	public static final TableName OSGP = new TableName("OSGP");
-	public static final TableName GSPO = new TableName("GSPO");
-	public static final TableName[] TABLES = { SPOG, PGOS, OSGP, GSPO };
+    /*
+     * List of tables named by key order
+     */
+    public static final TableName SPOG = new TableName("SPOG");
+    public static final TableName PGOS = new TableName("PGOS");
+    public static final TableName OSGP = new TableName("OSGP");
+    public static final TableName GSPO = new TableName("GSPO");
+    public static final TableName[] TABLES = { SPOG, PGOS, OSGP, GSPO };
+    public static final TableName COUNT_TABLE = OSGP;
 
-	/*
-	 * The mapping of table ID to name.
-	 */
-	static {
-		TABLE_MAP.put("spog", SPOG);
-		TABLE_MAP.put("spo_", SPOG);
-		TABLE_MAP.put("sp_g", GSPO);
-		TABLE_MAP.put("sp__", SPOG);
-		TABLE_MAP.put("s_og", OSGP);
-		TABLE_MAP.put("s_o_", OSGP);
-		TABLE_MAP.put("s__g", GSPO);
-		TABLE_MAP.put("s___", SPOG);
-		TABLE_MAP.put("_pog", PGOS);
-		TABLE_MAP.put("_po_", PGOS);
-		TABLE_MAP.put("_p_g", PGOS);
-		TABLE_MAP.put("_p__", PGOS);
-		TABLE_MAP.put("__og", OSGP); // + filter
-		TABLE_MAP.put("__o_", OSGP);
-		TABLE_MAP.put("___g", GSPO);
-		TABLE_MAP.put("____", GSPO); // or any other
-	}
+    /*
+     * The mapping of table ID to name.
+     */
+    static {
+        TABLE_MAP.put("spog", SPOG);
+        TABLE_MAP.put("spo_", SPOG);
+        TABLE_MAP.put("sp_g", GSPO);
+        TABLE_MAP.put("sp__", SPOG);
+        TABLE_MAP.put("s_og", OSGP);
+        TABLE_MAP.put("s_o_", OSGP);
+        TABLE_MAP.put("s__g", GSPO);
+        TABLE_MAP.put("s___", SPOG);
+        TABLE_MAP.put("_pog", PGOS);
+        TABLE_MAP.put("_po_", PGOS);
+        TABLE_MAP.put("_p_g", PGOS);
+        TABLE_MAP.put("_p__", PGOS);
+        TABLE_MAP.put("__og", OSGP); // + filter
+        TABLE_MAP.put("__o_", OSGP);
+        TABLE_MAP.put("___g", GSPO);
+        TABLE_MAP.put("____", GSPO); // or any other
+    }
 
-	// /* ALTERNATE CONFIGURATION
-	// * Object must be on the end. */
-	// private static final TableName SPGO = new TableName("SPGO");
-	// private static final TableName PGSO = new TableName("PGSO");
-	// private static final TableName GSPO = new TableName("GSPO");
-	// private static final TableName[] TABLES = { SPGO, PGSO, GSPO };
-	//
-	// static {
-	// TABLE_MAP.put("spog", SPGO);
-	// TABLE_MAP.put("spo_", SPGO);
-	// TABLE_MAP.put("sp_g", SPGO);
-	// TABLE_MAP.put("sp__", SPGO);
-	// TABLE_MAP.put("s_og", GSPO); // needs filter
-	// TABLE_MAP.put("s_o_", SPGO); // needs filter
-	// TABLE_MAP.put("s__g", GSPO);
-	// TABLE_MAP.put("s___", SPGO);
-	// TABLE_MAP.put("_pog", PGSO); // needs filter
-	// TABLE_MAP.put("_po_", PGSO); // need filter
-	// TABLE_MAP.put("_p_g", PGSO);
-	// TABLE_MAP.put("_p__", PGSO);
-	// TABLE_MAP.put("__og", GSPO); // needs filter
-	// TABLE_MAP.put("__o_", PGSO); // needs filter
-	// TABLE_MAP.put("___g", GSPO);
-	// TABLE_MAP.put("____", GSPO); // or any other
-	// }
-	//
-	// private static final Collection<String> NEEDS_FILTER =
-	// Arrays.asList("s_og", "s_o_", "_pog",
-	// "_po_","__og", "__o_");
+    // /* ALTERNATE CONFIGURATION
+    // * Object must be on the end. */
+    // private static final TableName SPGO = new TableName("SPGO");
+    // private static final TableName PGSO = new TableName("PGSO");
+    // private static final TableName GSPO = new TableName("GSPO");
+    // private static final TableName[] TABLES = { SPGO, PGSO, GSPO };
+    //
+    // static {
+    // TABLE_MAP.put("spog", SPGO);
+    // TABLE_MAP.put("spo_", SPGO);
+    // TABLE_MAP.put("sp_g", SPGO);
+    // TABLE_MAP.put("sp__", SPGO);
+    // TABLE_MAP.put("s_og", GSPO); // needs filter
+    // TABLE_MAP.put("s_o_", SPGO); // needs filter
+    // TABLE_MAP.put("s__g", GSPO);
+    // TABLE_MAP.put("s___", SPGO);
+    // TABLE_MAP.put("_pog", PGSO); // needs filter
+    // TABLE_MAP.put("_po_", PGSO); // need filter
+    // TABLE_MAP.put("_p_g", PGSO);
+    // TABLE_MAP.put("_p__", PGSO);
+    // TABLE_MAP.put("__og", GSPO); // needs filter
+    // TABLE_MAP.put("__o_", PGSO); // needs filter
+    // TABLE_MAP.put("___g", GSPO);
+    // TABLE_MAP.put("____", GSPO); // or any other
+    // }
+    //
+    // private static final Collection<String> NEEDS_FILTER =
+    // Arrays.asList("s_og", "s_o_", "_pog",
+    // "_po_","__og", "__o_");
 
-	/*
-	 * A thrift serializer
-	 */
-	private final TSerializer ser = new TSerializer();
+    public static class NodeProbeConfig {
+        public static int DEFAULT_PORT = 7199;
+        private String username;
+        private String password;
+        private List<String> server = new ArrayList<String>();
+        private int port = DEFAULT_PORT;
+        private Random random = new Random();
 
-	/* Cassandra Cluster. */
-	private final Cluster cluster;
 
-	/* Cassandra Session. */
-	private final Map<String,Session>  sessions;
+        public void withCredentials(String username, String password) {
+            this.username = username;
+            this.password = password;
+        }
 
-	/**
-	 * Build the table ID from the graph name and the triple pattern.
-	 * 
-	 * The graph ID string is "spog" with the letters replaced with underscores
-	 * "_" if the subject, predicate, object or graph is Node.ANY or null.
-	 * Quad.isUnionGraph( graph ) is considered the same as graph = Node.ANY.
-	 * 
-	 * @param quad
-	 *            The quad to find the id for.
-	 * @return the graph ID string.
-	 */
-	public static String getId(Quad quad) {
-		return new StringBuilder().append(ColumnName.S.getId(quad)).append(ColumnName.P.getId(quad))
-				.append(ColumnName.O.getId(quad)).append(ColumnName.G.getId(quad)).toString();
+        public boolean hasCredentials() {
+            return username != null && !username.isEmpty() && password != null && !password.isEmpty();
+        }
 
-	}
+        public void addContactPoints(String server) {
+            this.server.add(server);
+        }
 
-	/**
-	 * Constructor
-	 * @param cluster the cassandra cluster to use.
-	 */
-	public CassandraConnection(Cluster cluster) {
-		this.cluster = cluster;		
-		this.sessions = Collections.synchronizedMap(new HashMap<String,Session>());
-	}
+        public boolean hasContactPoints() {
+            return !this.server.isEmpty();
+        }
 
-	@Override
-	public void close() {
-		synchronized (sessions)
-		{
-			for (Session session : sessions.values())
-			{
-				session.close();
-			}
-			sessions.clear();
-		}
-	}
-	
-	/**
-	 * Create the keyspace in the cluster.
-	 * @param createStmt the statement to execute.
-	 */
-	public void createKeyspace( String createStmt )
-	{
-		cluster.connect().execute(createStmt);
-	}
-	
-	/**
-	 * Get the list of tabales.
-	 * 
-	 * @return The list of tables.
-	 */
-	public static Collection<TableName> getTableList() {
-		return Arrays.asList(TABLES);
-	}
+        public void withPort(int port) {
+            assert port > 0;
+            this.port = port;
+        }
 
-	/**
-	 * Get the cassandra session.
-	 * 
-	 * @return The cassandra session.
-	 */
-	public Session getSession(String keyspace) {
-		Session retval = sessions.get(keyspace);
-		if (retval == null)
-		{
-			retval = cluster.connect(keyspace);
-			sessions.put(keyspace, retval);
-		}
-		return retval;
-	}
+        private String getServer() {
+            return server.get(random.nextInt(server.size()));
+        }
 
-	/**
-	 * Delete the tables we manage from the keyspace.
-	 * 
-	 * @param keyspace
-	 *            The keyspace to delete from
-	 */
-	public void deleteTables(String keyspace) {
-		ExtendedIterator<String> iter = null;
-		for (TableName tbl : getTableList()) {
-			if (iter == null)
-			{
-				iter = WrappedIterator.create( tbl.getDeleteTableStatements());					
-			}
-			else
-			{
-				iter = iter.andThen( tbl.getDeleteTableStatements() );
-			}
-		}
-		executeUpdateSet( keyspace, iter );
-	}
+        public NodeProbe createProbe() throws IOException {
+            return hasCredentials() ? new NodeProbe(getServer(), port, username, password)
+                    : new NodeProbe(getServer(), port);
 
-	/**
-	 * Create the tables we manage in the keyspace.
-	 * 
-	 * @param keyspace
-	 *            the keyspace to create the tables in.
-	 */
-	public void createTables(String keyspace) {
-		
-		Session session = getSession(keyspace);
-		for (TableName tbl : getTableList()) {
-			for (String stmt : tbl.getCreateTableStatements()) {
-				LOG.debug(stmt);
-				session.execute(stmt);
-			}
-		}
-	}
+        }
 
-	/**
-	 * Truncate all the tables in the keyspace.
-	 * 
-	 * @param keyspace
-	 *            The keyspace to delete from.
-	 */
-	public void truncateTables(String keyspace) {
-				
-		Iterator<String> statements = CassandraConnection.getTableList().stream().map( new Function<TableName,String>(){
-			@Override
-			public String apply(TableName t) {
-				return String.format("TRUNCATE %s ;", t.getName());
-			}}).iterator();
-		executeUpdateSet( keyspace, statements );
-	}
-	
-	/**
-	 * Perform update statements (no data retrieval) using async calls.  
-	 * 
-	 * Method returns when all
-	 *  the async statements have been executed.  There is no guarantee that the statements
-	 *  will be executed in any particular order.
-	 *  
-	 * @param keyspace The keyspace to execute the commands in.
-	 * @param statements An iterator of queries to execute.
-	 */
-	public void executeUpdateSet( String keyspace, Iterator<String> statements )
-	{
-		BulkExecutor bulkExecutor = new BulkExecutor( getSession(keyspace) );
-		bulkExecutor.execute(statements);
-		bulkExecutor.awaitFinish();
-	}	
+        public boolean isValid( boolean sslFlag ) {
+            Predicate<String> connectionFilter = new Predicate<String>() {
 
-	/**
-	 * Get the table name for the ID.
-	 * 
-	 * @param tableId
-	 *            the table id.
-	 * @return the associated table name.
-	 */
-	public static TableName getTable(String tableId) {
-		TableName tblName = TABLE_MAP.get(tableId);
-		if (tblName == null) {
-			throw new IllegalStateException(String.format("No table for %s", tableId));
-		}
-		return tblName;
-	}
+                private static final String fmtUrl = "service:jmx:rmi:///jndi/rmi://[%s]:%d/jmxrmi";
 
-	/**
-	 * Execute the query and return the result set.  Log any errors.
-	 * @param keyspace The keyspace to execute the query in.
-	 * @param query The query to execute
-	 * @return The Cassandra ResultSet from the query.
-	 */
-	public ResultSet executeQuery(String keyspace, String query) {
-		if (LOG.isDebugEnabled()) {
-			LOG.debug("executing query: " + query);
-		}
-		try {
-			return getSession(keyspace).execute(query);
-		} catch (QueryValidationException e) {
-			LOG.error(String.format("Query Execution issue (%s) while executing: (%s)", e.getMessage(), query), e);
-			throw e;
-		}
-	}
+                private RMIClientSocketFactory getRMIClientSocketFactory()
+                {
+                    if (sslFlag)
+                        return new SslRMIClientSocketFactory();
+                    else
+                        return RMISocketFactory.getDefaultSocketFactory();
+                }
 
-	/**
-	 * Execute a single update statement (no data returned).  Logging is performed as appropriate.
-	 * @param keyspace The keyspace to execute in.
-	 * @param statement the statement to execute.
-	 * @return ResultSetFuture
-	 */
-	public ResultSetFuture executeUpdate(String keyspace, String statement) {
-		if (LOG.isDebugEnabled()) {
-			LOG.debug("executing query: " + statement);
-		}
-		try {
-			return getSession(keyspace).executeAsync(statement);
-		} catch (QueryValidationException e) {
-			LOG.error(String.format("Query Execution issue (%s) while executing: (%s)", e.getMessage(), statement), e);
-			throw e;
-		}
-	}
-	
-	/**
-	 * Return the serialized value of the node.
-	 * 
-	 * @param node
-	 *            the node to serialize.
-	 * @return The serialized node in a string form for use in cassandra
-	 *         queries.
-	 * @throws TException
-	 *             on serialization error.
-	 */
-	public String valueOf(Node node) throws TException {
-		RDF_Term term = new RDF_Term();
-		ThriftConvert.toThrift(node, null, term, false);
-		byte[] bary = ser.serialize(term);
-		return Bytes.toHexString(bary);
-	}
-	
+                @Override
+                public boolean test(String host) {
+                    try {
+                    JMXServiceURL jmxUrl = new JMXServiceURL(String.format(fmtUrl, host, port));
+                    Map<String, Object> env = new HashMap<String, Object>();
+                    if (username != null)
+                    {
+                        String[] creds = { username, password };
+                        env.put(JMXConnector.CREDENTIALS, creds);
+                    }
+
+                    env.put("com.sun.jndi.rmi.factory.socket", getRMIClientSocketFactory());
+
+                    try( JMXConnector connection = JMXConnectorFactory.connect(jmxUrl, env) )
+                    {
+                    return true;
+                    } catch (IOException e) {
+                        return false;
+                    }
+                    } catch (MalformedURLException e) {
+                        return false;
+                    }
+                }};
+
+            server = server.stream().filter( connectionFilter ).collect( Collectors.toList());
+            return !server.isEmpty();
+        }
+    }
+
+    /*
+     * A thrift serializer
+     */
+    private final TSerializer ser;
+
+    /* Cassandra Cluster. */
+    private final Cluster cluster;
+
+    /* Cassandra Session. */
+    private final Map<String, Session> sessions;
+
+    private final NodeProbeConfig nodeProbeConfig;
+
+    /**
+     * Build the table ID from the graph name and the triple pattern.
+     *
+     * The graph ID string is "spog" with the letters replaced with underscores
+     * "_" if the subject, predicate, object or graph is Node.ANY or null.
+     * Quad.isUnionGraph( graph ) is considered the same as graph = Node.ANY.
+     *
+     * @param quad
+     *            The quad to find the id for.
+     * @return the graph ID string.
+     */
+    public static String getId(Quad quad) {
+        return new StringBuilder().append(ColumnName.S.getId(quad)).append(ColumnName.P.getId(quad))
+                .append(ColumnName.O.getId(quad)).append(ColumnName.G.getId(quad)).toString();
+
+    }
+
+    /**
+     * Constructor
+     * @param cluster the cassandra cluster to use.
+     * @throws TTransportException
+     */
+    public CassandraConnection(Cluster cluster, NodeProbeConfig nodeProbeConfig) throws TTransportException {
+        this.cluster = cluster;
+        this.sessions = Collections.synchronizedMap(new HashMap<String, Session>());
+        this.nodeProbeConfig = nodeProbeConfig;
+        ser = new TSerializer();
+    }
+
+    @Override
+    public void close() {
+        synchronized (sessions) {
+            for (Session session : sessions.values()) {
+                session.close();
+            }
+            sessions.clear();
+        }
+    }
+
+    /**
+     * Create the keyspace in the cluster.
+     * @param createStmt the statement to execute.
+     */
+    public void createKeyspace(String createStmt) {
+        Session session = null;
+        try{
+            session = cluster.connect();
+            session.execute( createStmt );
+        } finally {
+            session.close();
+        }
+    }
+
+    /**
+     * Get the list of tabales.
+     *
+     * @return The list of tables.
+     */
+    public static Collection<TableName> getTableList() {
+        return Arrays.asList(TABLES);
+    }
+
+    /**
+     * Get the cassandra session.
+     *
+     * @return The cassandra session.
+     */
+    public Session getSession(String keyspace) {
+        Session retval = sessions.get(keyspace);
+        if (retval == null) {
+            retval = cluster.connect(keyspace);
+            sessions.put(keyspace, retval);
+        }
+        return retval;
+    }
+
+    /**
+     * Delete the tables we manage from the keyspace.
+     *
+     * @param keyspace
+     *            The keyspace to delete from
+     */
+    public void deleteTables(String keyspace) {
+        ExtendedIterator<String> iter = null;
+        for (TableName tbl : getTableList()) {
+            if (iter == null) {
+                iter = WrappedIterator.create(tbl.getDeleteTableStatements());
+            } else {
+                iter = iter.andThen(tbl.getDeleteTableStatements());
+            }
+        }
+        executeUpdateSet(keyspace, iter);
+    }
+
+    /**
+     * Create the tables we manage in the keyspace.
+     *
+     * @param keyspace
+     *            the keyspace to create the tables in.
+     */
+    public void createTables(String keyspace) {
+
+        Session session = getSession(keyspace);
+        for (TableName tbl : getTableList()) {
+            for (String stmt : tbl.getCreateTableStatements()) {
+                LOG.debug(stmt);
+                session.execute(stmt);
+            }
+        }
+    }
+
+    /**
+     * Truncate all the tables in the keyspace.
+     *
+     * @param keyspace
+     *            The keyspace to delete from.
+     */
+    public void truncateTables(String keyspace) {
+
+        Iterator<String> statements = CassandraConnection.getTableList().stream()
+                .map(new Function<TableName, String>() {
+                    @Override
+                    public String apply(TableName t) {
+                        return String.format("TRUNCATE %s ;", t.getName());
+                    }
+                }).iterator();
+        executeUpdateSet(keyspace, statements);
+    }
+
+    /**
+     * Perform update statements (no data retrieval) using async calls.
+     *
+     * Method returns when all
+     *  the async statements have been executed.  There is no guarantee that the statements
+     *  will be executed in any particular order.
+     *
+     * @param keyspace The keyspace to execute the commands in.
+     * @param statements An iterator of queries to execute.
+     */
+    public void executeUpdateSet(String keyspace, Iterator<String> statements) {
+        BulkExecutor bulkExecutor = new BulkExecutor(getSession(keyspace));
+        bulkExecutor.execute(statements);
+        bulkExecutor.awaitFinish();
+    }
+
+    /**
+     * Get the table name for the ID.
+     *
+     * @param tableId
+     *            the table id.
+     * @return the associated table name.
+     */
+    public static TableName getTable(String tableId) {
+        TableName tblName = TABLE_MAP.get(tableId);
+        if (tblName == null) {
+            throw new IllegalStateException(String.format("No table for %s", tableId));
+        }
+        return tblName;
+    }
+
+    /**
+     * Execute the query and return the result set.  Log any errors.
+     * @param keyspace The keyspace to execute the query in.
+     * @param query The query to execute
+     * @return The Cassandra ResultSet from the query.
+     */
+    public ResultSet executeQuery(String keyspace, String query) {
+        if (LOG.isDebugEnabled()) {
+            LOG.debug("executing query: " + query);
+        }
+        try {
+            return getSession(keyspace).execute(query);
+        } catch (QueryValidationException e) {
+            LOG.error(String.format("Query Execution issue (%s) while executing: (%s)", e.getMessage(), query), e);
+            throw e;
+        }
+    }
+
+    /**
+     * Execute a single update statement (no data returned).  Logging is performed as appropriate.
+     * @param keyspace The keyspace to execute in.
+     * @param statement the statement to execute.
+     * @return ResultSetFuture
+     */
+    public ResultSetFuture executeUpdate(String keyspace, String statement) {
+        if (LOG.isDebugEnabled()) {
+            LOG.debug("executing query: " + statement);
+        }
+        try {
+            return getSession(keyspace).executeAsync(statement);
+        } catch (QueryValidationException e) {
+            LOG.error(String.format("Query Execution issue (%s) while executing: (%s)", e.getMessage(), statement), e);
+            throw e;
+        }
+    }
+
+    /**
+     * Return the serialized value of the node.
+     *
+     * @param node
+     *            the node to serialize.
+     * @return The serialized node in a string form for use in cassandra
+     *         queries.
+     * @throws TException
+     *             on serialization error.
+     */
+    public String valueOf(Node node) throws TException {
+        RDF_Term term = new RDF_Term();
+        ThriftConvert.toThrift(node, null, term, false);
+        byte[] bary = ser.serialize(term);
+        return Bytes.toHexString(bary);
+    }
+
+    /**
+     * Returns an estimated count or -1 if ther was an error
+     * @param keyspace the keyspace to search.
+     * @param graph the Graph to count,  Node.ANY for union grpah.
+     * @return an estimated count or -1 if ther was an error.
+     */
+    public long estimateTableSize(String keyspace, Node graph) {
+        // All tables have the same size. They are just different organizations of the
+        // same data.
+        long result = -1;
+        if (nodeProbeConfig != null && graph.equals( Node.ANY )) {
+            try (NodeProbe probe = nodeProbeConfig.createProbe()) {
+                Object estimatedPartitionCount = probe.getColumnFamilyMetric(keyspace, COUNT_TABLE.getName(),
+                        "EstimatedPartitionCount");
+                // may return -1 for error
+                result = ((Long) estimatedPartitionCount).longValue();
+            } catch (IOException e) {
+                LOG.error( "Can not connect to JMX server", e );
+            }
+        }
+        if (result == -1) {
+            QueryPattern pattern = new QueryPattern(this, graph, Triple.ANY);
+            try {
+                result = pattern.getCount(keyspace);
+            } catch (TException e) {
+                LOG.error("Error executing count", e);
+            }
+        }
+        return result;
+    }
+
 }

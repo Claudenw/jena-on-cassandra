@@ -33,17 +33,17 @@ import org.apache.thrift.TException;
  *
  */
 public enum ColumnName {
-	S("subject", ColumnType.blob, 0), P("predicate", ColumnType.blob, 1), 
-	O("object", ColumnType.blob, 2), G("graph", ColumnType.blob ,3), 
-	L("obj_lang", ColumnType.text, 4), D("obj_dtype", ColumnType.text, 5), 
+	S("subject", ColumnType.blob, 0), P("predicate", ColumnType.blob, 1),
+	O("object", ColumnType.blob, 2), G("graph", ColumnType.blob ,3),
+	L("obj_lang", ColumnType.text, 4), D("obj_dtype", ColumnType.text, 5),
 	I( "obj_int", ColumnType.varint, -1), V( "obj_value", ColumnType.text, 6);
 
 	public enum ColumnType {
 		blob, text, varint
 	}
-	
+
 	private static final Log LOG = LogFactory.getLog(ColumnName.class);
-	
+
 	/* the long name of the column -- first character must be unique across all column names*/
 	private String name;
 	/* the data type of the column */
@@ -53,7 +53,7 @@ public enum ColumnName {
 
 	/**
 	 * Constructor.
-	 * 
+	 *
 	 * @param name
 	 *            The long name of the column
 	 * @param datatype The data type for the column
@@ -64,11 +64,11 @@ public enum ColumnName {
 		this.datatype = datatype;
 		this.queryPos = queryPos;
 	}
-	
+
 	/**
 	 * The position of this column in the standard query.
 	 * -1 if not included in the standard query.
-	 * @return the position for this column in the standard query.  
+	 * @return the position for this column in the standard query.
 	 */
 	public int getQueryPos()
 	{
@@ -79,13 +79,14 @@ public enum ColumnName {
 	 * Returns the column long name.
 	 * @return the column long name.
 	 */
-	public String toString() {
+	@Override
+    public String toString() {
 		return name;
 	}
 
 	/**
 	 * Return the column id char.
-	 * 
+	 *
 	 * @return the first character of the name
 	 */
 	public char getId() {
@@ -94,9 +95,9 @@ public enum ColumnName {
 
 	/**
 	 * Return the column id for the column in the quad. If the quad value is not
-	 * defined (null or ANY) then "_" is returned otherwis the standard column
+	 * defined (null or ANY) then "_" is returned otherwise the standard column
 	 * id is returned.
-	 * 
+	 *
 	 * @param quad
 	 *            THe quad to check.
 	 * @return The column id based on the value in the quad.
@@ -107,11 +108,11 @@ public enum ColumnName {
 
 	/**
 	 * Get the corresponding match node from the quad.
-	 * 
+	 *
 	 * Will not return Node.ANY
-	 * 
+	 *
 	 * Any node the is specified as Node ANY will be returned as null.
-	 * 
+	 *
 	 * @param quad
 	 *            The quad to extract the value from.
 	 * @return the value or null.
@@ -133,7 +134,7 @@ public enum ColumnName {
 			return null;
 		}
 	}
-	
+
 	/**
 	 * Get the scan value for a where clause.
 	 * @return The scan value string for this column.
@@ -151,14 +152,14 @@ public enum ColumnName {
 			{
 				return String.format( "token(%s) = token(%s)", this, value);
 			}
-			
+
 		case varint:
 			return String.format( "%s >= %s", this, Integer.MIN_VALUE);
 		case text:
-			return String.format( "%s >= %s", this, "''");		
+			return String.format( "%s >= %s", this, "''");
 		}
 	}
-	
+
 	/**
 	 * The string to add to a query for an equality check.
 	 * @param connection The connection to use
@@ -173,7 +174,7 @@ public enum ColumnName {
 		}
 		return String.format( "%s=%s", this, getInsertValue( connection, value ));
 	}
-	
+
 	/**
 	 * The string to add an insert values statement for this column.
 	 * @param connection The connection to use
@@ -198,10 +199,10 @@ public enum ColumnName {
 				throw new IllegalStateException(String.format("Unable to encode %s",value), e );
 			}
 		case text:
-			return String.format( "'%s'", value.toString().replaceAll("'", "''"));		
+			return String.format( "'%s'", value.toString().replaceAll("'", "''"));
 		}
 	}
-	
+
 	/**
 	 * The text to create the column.
 	 * @return the column definition for construction.
@@ -209,10 +210,10 @@ public enum ColumnName {
 	public String getCreateText() {
 		return String.format( "%s %s", name, datatype);
 	}
-	
+
 	/**
 	 * Get the value object for this column based on the the data in the quad.
-	 * 
+	 *
 	 * @param quad The quad data.
 	 * @return The object for this column.
 	 */
@@ -236,7 +237,7 @@ public enum ColumnName {
 	case I:
 		n = ColumnName.O.getMatch(quad);
 		if (n != null) {
-			if (n.isLiteral() && n.getLiteralDatatype() instanceof XSDBaseNumericType) {							
+			if (n.isLiteral() && n.getLiteralDatatype() instanceof XSDBaseNumericType) {
 				return new BigDecimal(n.getLiteral().getLexicalForm());
 			}
 		}
