@@ -20,10 +20,10 @@ package org.apache.jena.cassandra.graph;
 
 /**
  * An implementation of the Jena datastore on Cassandra.
- * 
+ *
  * This implementation uses 4 tables.  All 4 tables are written to on insert and delete.
- * When querying a single table is used based on the columns provided in the query. 
- * 
+ * When querying a single table is used based on the columns provided in the query.
+ *
  * Graph patterns
  * <ul>
  * <li>SPOG</li>
@@ -31,12 +31,12 @@ package org.apache.jena.cassandra.graph;
  * <li>OSGP</li>
  * <li>GSPO</li>
  * </ul>
- * 
+ *
  * The mapping of query columns to table is performed in the CassandraConnection class.
- * 
+ *
  * <p>
- * All tables have the same structure with different primary key definition.  All primary keys are 
- * multi-segmented with the first segment being the partition key.  The column order in the primary key 
+ * All tables have the same structure with different primary key definition.  All primary keys are
+ * multi-segmented with the first segment being the partition key.  The column order in the primary key
  * match the column names from the table name. (e.g. SPOG has the primary key = subject, predicate, object,
  * graph).
  */

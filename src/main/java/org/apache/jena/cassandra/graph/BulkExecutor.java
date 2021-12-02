@@ -34,133 +34,133 @@ import com.datastax.driver.core.Session;
  */
 public class BulkExecutor {
 
-	private Log log;
+    private Log log;
 
-	/*
-	 * the Cassandra session to use.
-	 */
-	private Session session;
+    /*
+     * the Cassandra session to use.
+     */
+    private Session session;
 
-	/*
-	 * this is a map of all ResultSetFutures and the Runnables that are
-	 * registered as their listener. when the future completes the runnable
-	 * removes the future from the map.
-	 */
-	private ConcurrentHashMap<Runnable, ResultSetFuture> map = new ConcurrentHashMap<>();
+    /*
+     * this is a map of all ResultSetFutures and the Runnables that are
+     * registered as their listener. when the future completes the runnable
+     * removes the future from the map.
+     */
+    private ConcurrentHashMap<Runnable, ResultSetFuture> map = new ConcurrentHashMap<>();
 
-	/*
-	 * The service that executest the runnables.
-	 */
-	private ExecutorService executor = Executors.newSingleThreadExecutor();
+    /*
+     * The service that executest the runnables.
+     */
+    private ExecutorService executor = Executors.newSingleThreadExecutor();
 
-	/**
-	 * Constructor.
-	 *
-	 * @param session
-	 *            The Cassandra session to use.
-	 */
-	public BulkExecutor(Session session) {
-		this.session = session;
-		this.log = LogFactory.getLog(BulkExecutor.class.getName() + "." + hashCode());
-	}
+    /**
+     * Constructor.
+     *
+     * @param session
+     *            The Cassandra session to use.
+     */
+    public BulkExecutor(Session session) {
+        this.session = session;
+        this.log = LogFactory.getLog(BulkExecutor.class.getName() + "." + hashCode());
+    }
 
-	/**
-	 * Set the logging. Used when another class uses the bulk executor and wants
-	 * to capture the logging.
-	 *
-	 * @param log
-	 *            The log for this BulkExecutor to log to.
-	 */
-	public void setLog(Log log) {
-		this.log = log;
-	}
+    /**
+     * Set the logging. Used when another class uses the bulk executor and wants
+     * to capture the logging.
+     *
+     * @param log
+     *            The log for this BulkExecutor to log to.
+     */
+    public void setLog(Log log) {
+        this.log = log;
+    }
 
-	/**
-	 * Execute a number of statements.
-	 *
-	 * All output from the statements are discarded.
-	 *
-	 * Statement order is not guaranteed.
-	 *
-	 * May be called multiple times. May not be called after awaitFinish().
-	 *
-	 * @see awaitFinish
-	 *
-	 * @param statements
-	 *            An iterator of statements to execute.
-	 */
-	public void execute(Iterator<String> statements) {
-		while (statements.hasNext()) {
-			String statement = statements.next();
+    /**
+     * Execute a number of statements.
+     *
+     * All output from the statements are discarded.
+     *
+     * Statement order is not guaranteed.
+     *
+     * May be called multiple times. May not be called after awaitFinish().
+     *
+     * @see awaitFinish
+     *
+     * @param statements
+     *            An iterator of statements to execute.
+     */
+    public void execute(Iterator<String> statements) {
+        while (statements.hasNext()) {
+            String statement = statements.next();
 
-			/*
-			 * runner runs when future is complete. It simply removes the future
-			 * from the map to show that it is complete.
-			 */
-			Runnable runner = new Runnable() {
-				@Override
-				public void run() {
-					if (log.isDebugEnabled()) {
-						log.debug("finished executing statement: " + statement);
-					}
-					map.remove(this);
-				}
-			};
-			if (log.isDebugEnabled()) {
-				log.debug("executing statement: " + statement);
-			}
-			ResultSetFuture rsf = session.executeAsync(statement);
-			/*
-			 * the map keeps a reference to the ResultSetFuture so we can track
-			 * when all futures have executed
-			 */
-			map.put(runner, rsf);
-			// the ResultSetFuture will execute the runner on the executor.
-			rsf.addListener(runner, executor);
-		}
-	}
+            /*
+             * runner runs when future is complete. It simply removes the future
+             * from the map to show that it is complete.
+             */
+            Runnable runner = new Runnable() {
+                @Override
+                public void run() {
+                    if (log.isDebugEnabled()) {
+                        log.debug("finished executing statement: " + statement);
+                    }
+                    map.remove(this);
+                }
+            };
+            if (log.isDebugEnabled()) {
+                log.debug("executing statement: " + statement);
+            }
+            ResultSetFuture rsf = session.executeAsync(statement);
+            /*
+             * the map keeps a reference to the ResultSetFuture so we can track
+             * when all futures have executed
+             */
+            map.put(runner, rsf);
+            // the ResultSetFuture will execute the runner on the executor.
+            rsf.addListener(runner, executor);
+        }
+    }
 
-	/**
-	 * Wait for the executor to complete all executions.
-	 */
-	public void awaitFinish() {
-		/* if the map is not empty we need to wait until it is */
-		if (!map.isEmpty()) {
-			/*
-			 * this runnable will check the map and if it is empty notify this
-			 * (calling) thread so it can continue. Otherwise it places itself
-			 * back on the executor queue again.
-			 */
-			Runnable r = new Runnable() {
-				@Override
-				public void run() {
-					synchronized (this) {
-						if (map.isEmpty()) {
-							notify();
-						} else {
-							if (log.isDebugEnabled()) {
-								log.debug("Requeueing for finish");
-							}
-							executor.execute(this);
-						}
-					}
-				}
-			};
-			synchronized (r) {
-				try {
-					/*
-					 * place the runnable on the executor thread and then wait
-					 * to be notified. We will be notified when all the
-					 * statements have been executed
-					 */
-					executor.execute(r);
-					r.wait();
-				} catch (InterruptedException e) {
-					log.error("Interrupted waiting for map to clear", e);
-				}
-			}
-		}
-		executor.shutdown();
-	}
+    /**
+     * Wait for the executor to complete all executions.
+     */
+    public void awaitFinish() {
+        /* if the map is not empty we need to wait until it is */
+        if (!map.isEmpty()) {
+            /*
+             * this runnable will check the map and if it is empty notify this
+             * (calling) thread so it can continue. Otherwise it places itself
+             * back on the executor queue again.
+             */
+            Runnable r = new Runnable() {
+                @Override
+                public void run() {
+                    synchronized (this) {
+                        if (map.isEmpty()) {
+                            notify();
+                        } else {
+                            if (log.isDebugEnabled()) {
+                                log.debug("Requeueing for finish");
+                            }
+                            executor.execute(this);
+                        }
+                    }
+                }
+            };
+            synchronized (r) {
+                try {
+                    /*
+                     * place the runnable on the executor thread and then wait
+                     * to be notified. We will be notified when all the
+                     * statements have been executed
+                     */
+                    executor.execute(r);
+                    r.wait();
+                } catch (InterruptedException e) {
+                    log.error("Interrupted waiting for map to clear", e);
+                }
+            }
+        }
+        executor.shutdown();
+    }
 
 }

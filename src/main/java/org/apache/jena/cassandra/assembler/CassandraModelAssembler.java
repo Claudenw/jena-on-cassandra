@@ -26,7 +26,7 @@ import org.apache.jena.assembler.Mode;
 import org.apache.jena.assembler.assemblers.AssemblerBase;
 import org.apache.jena.cassandra.graph.CassandraConnection;
 import org.apache.jena.cassandra.graph.GraphCassandra;
-import org.apache.jena.cassandra.graph.CassandraConnection.NodeProbeConfig;
+import org.apache.jena.cassandra.graph.CassandraJMXConnection.Factory;
 import org.apache.jena.graph.Graph;
 import org.apache.jena.rdf.model.Model;
 import org.apache.jena.rdf.model.ModelFactory;
@@ -45,28 +45,28 @@ import com.datastax.driver.core.Cluster;
  */
 public class CassandraModelAssembler extends AssemblerBase implements Assembler {
 
-	// Make a model - the default model of the Cassandra dataset
-	// [] rdf:type joc:Model ;
-	// joc:useCluster "clusterName" ;
-	// joc:keyspace "keyspace"
+    // Make a model - the default model of the Cassandra dataset
+    // [] rdf:type joc:Model ;
+    // joc:useCluster "clusterName" ;
+    // joc:keyspace "keyspace"
 
-	// Make a named model.
-	// [] rdf:type joc:Model ;
-	// joc:useCluster "clusterName";
-	// joc:keyspace "keyspace"
-	// joc:graphName <graphIRI>
+    // Make a named model.
+    // [] rdf:type joc:Model ;
+    // joc:useCluster "clusterName";
+    // joc:keyspace "keyspace"
+    // joc:graphName <graphIRI>
 
-	@Override
-	public Model open(Assembler a, Resource root, Mode mode) {
-		String keyspace = getStringValue(root, VocabCassandra.keyspace);
-		String clusterName = getStringValue(root, VocabCassandra.useCluster);
-		Resource graphName = getResourceValue(root, VocabCassandra.graphName);
+    @Override
+    public Model open(Assembler a, Resource root, Mode mode) {
+        String keyspace = getStringValue(root, VocabCassandra.keyspace);
+        String clusterName = getStringValue(root, VocabCassandra.useCluster);
+        Resource graphName = getResourceValue(root, VocabCassandra.graphName);
 
-		Cluster cluster = CassandraClusterAssembler.getCluster(root, clusterName);
-        NodeProbeConfig nodeProbeConfig = CassandraNodeProbeAssembler.getNodeProbeConfig(root, clusterName );
+        Cluster cluster = CassandraClusterAssembler.getCluster(root, clusterName);
+        Factory jmxFactory = CassandraJMXFactoryAssembler.getFactory(root, clusterName );
 
-		try {
-            CassandraConnection connection = new CassandraConnection(cluster, nodeProbeConfig);
+        try {
+            CassandraConnection connection = new CassandraConnection(cluster, jmxFactory);
 
             Graph g = new GraphCassandra((graphName == null ? null : graphName.asNode()), keyspace, connection);
             return ModelFactory.createModelForGraph(g);
@@ -74,6 +74,6 @@ public class CassandraModelAssembler extends AssemblerBase implements Assembler 
             throw new IllegalStateException( "Unable to create CassandraConnection", e );
         }
 
-	}
+    }
 
 }

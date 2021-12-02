@@ -24,45 +24,45 @@ import org.apache.jena.sparql.core.assembler.AssemblerUtils;
 
 public class VocabCassandra {
 
-	private static final String NS = "https://jena.apache.org/jena-on-cassandra#";
+    private static final String NS = "https://jena.apache.org/jena-on-cassandra#";
 
-	public static final Resource Cluster = ResourceFactory.createResource(NS + "Cluster");
+    public static final Resource Cluster = ResourceFactory.createResource(NS + "Cluster");
 
-	public static final Property contactPoint = ResourceFactory.createProperty(NS, "contact");
-	public static final Property address = ResourceFactory.createProperty(NS, "address");
-	public static final Property port = ResourceFactory.createProperty(NS, "port");
-	public static final Property compression = ResourceFactory.createProperty(NS, "compression");
-	public static final Property credentials = ResourceFactory.createProperty(NS, "credentials");
-	public static final Property user = ResourceFactory.createProperty(NS, "user");
-	public static final Property password = ResourceFactory.createProperty(NS, "password");
-	public static final Property metrics = ResourceFactory.createProperty(NS, "metrics");
-	public static final Property ssl = ResourceFactory.createProperty(NS, "ssl");
-	public static final Property name = ResourceFactory.createProperty(NS, "name");
+    public static final Property contactPoint = ResourceFactory.createProperty(NS, "contact");
+    public static final Property address = ResourceFactory.createProperty(NS, "address");
+    public static final Property port = ResourceFactory.createProperty(NS, "port");
+    public static final Property compression = ResourceFactory.createProperty(NS, "compression");
+    public static final Property credentials = ResourceFactory.createProperty(NS, "credentials");
+    public static final Property user = ResourceFactory.createProperty(NS, "user");
+    public static final Property password = ResourceFactory.createProperty(NS, "password");
+    public static final Property metrics = ResourceFactory.createProperty(NS, "metrics");
+    public static final Property ssl = ResourceFactory.createProperty(NS, "ssl");
+    public static final Property name = ResourceFactory.createProperty(NS, "name");
 
-    public static final Resource NodeProbeConfig = ResourceFactory.createResource(NS + "NodeProbeConfig");
+    public static final Resource JMXFactory = ResourceFactory.createResource(NS + "JMXFactory");
     public static final Property jmx = ResourceFactory.createProperty(NS, "jmx");
 
 
-	public static final Resource Dataset = ResourceFactory.createResource(NS + "Dataset");
+    public static final Resource Dataset = ResourceFactory.createResource(NS + "Dataset");
 
-	public static final Property useCluster = ResourceFactory.createProperty(NS, "useCluster");
-	public static final Property keyspace = ResourceFactory.createProperty(NS, "keyspace");
+    public static final Property useCluster = ResourceFactory.createProperty(NS, "useCluster");
+    public static final Property keyspace = ResourceFactory.createProperty(NS, "keyspace");
 
-	public static final Resource Model = ResourceFactory.createResource(NS + "Model");
-	public static final Property graphName = ResourceFactory.createProperty(NS, "graphName");
+    public static final Resource Model = ResourceFactory.createResource(NS + "Model");
+    public static final Property graphName = ResourceFactory.createProperty(NS, "graphName");
 
-	private static boolean initialized = false;
+    private static boolean initialized = false;
 
-	static {
-		init();
-	}
+    static {
+        init();
+    }
 
-	static synchronized public void init() {
-		if (initialized)
-			return;
-		initialized = true;
-		AssemblerUtils.registerDataset(Dataset, new CassandraDatasetAssembler());
-		AssemblerUtils.registerModel(Model, new CassandraModelAssembler());
-		AssemblerUtils.registerAssembler(null, Cluster, new CassandraClusterAssembler());
-	}
+    static synchronized public void init() {
+        if (initialized)
+            return;
+        initialized = true;
+        AssemblerUtils.registerDataset(Dataset, new CassandraDatasetAssembler());
+        AssemblerUtils.registerModel(Model, new CassandraModelAssembler());
+        AssemblerUtils.registerAssembler(null, Cluster, new CassandraClusterAssembler());
+    }
 }

@@ -20,51 +20,25 @@ package org.apache.jena.cassandra.graph;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.net.MalformedURLException;
-import java.rmi.server.RMIClientSocketFactory;
-import java.rmi.server.RMISocketFactory;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
-import java.util.Random;
-import java.util.Set;
 import java.util.function.Function;
-import java.util.function.Predicate;
-import java.util.stream.Collectors;
-
-import javax.management.remote.JMXConnector;
-import javax.management.remote.JMXConnectorFactory;
-import javax.management.remote.JMXServiceURL;
-import javax.rmi.ssl.SslRMIClientSocketFactory;
-
-import org.apache.cassandra.tools.NodeProbe;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import org.apache.jena.assembler.Assembler;
-import org.apache.jena.assembler.exceptions.AssemblerException;
-import org.apache.jena.cassandra.assembler.VocabCassandra;
 import org.apache.jena.graph.Node;
 import org.apache.jena.graph.Triple;
-import org.apache.jena.query.ARQ;
-import org.apache.jena.rdf.model.Model;
-import org.apache.jena.rdf.model.Resource;
 import org.apache.jena.riot.thrift.ThriftConvert;
 import org.apache.jena.riot.thrift.wire.RDF_Term;
 import org.apache.jena.sparql.core.Quad;
-import org.apache.jena.sparql.util.Symbol;
 import org.apache.jena.util.iterator.ExtendedIterator;
 import org.apache.jena.util.iterator.WrappedIterator;
-import org.apache.jena.vocabulary.RDF;
 import org.apache.thrift.TException;
 import org.apache.thrift.TSerializer;
 import org.apache.thrift.transport.TTransportException;
-
 import com.datastax.driver.core.Cluster;
 import com.datastax.driver.core.ResultSet;
 import com.datastax.driver.core.ResultSetFuture;
@@ -154,88 +128,6 @@ public class CassandraConnection implements Closeable {
     // Arrays.asList("s_og", "s_o_", "_pog",
     // "_po_","__og", "__o_");
 
-    public static class NodeProbeConfig {
-        public static int DEFAULT_PORT = 7199;
-        private String username;
-        private String password;
-        private List<String> server = new ArrayList<String>();
-        private int port = DEFAULT_PORT;
-        private Random random = new Random();
-
-
-        public void withCredentials(String username, String password) {
-            this.username = username;
-            this.password = password;
-        }
-
-        public boolean hasCredentials() {
-            return username != null && !username.isEmpty() && password != null && !password.isEmpty();
-        }
-
-        public void addContactPoints(String server) {
-            this.server.add(server);
-        }
-
-        public boolean hasContactPoints() {
-            return !this.server.isEmpty();
-        }
-
-        public void withPort(int port) {
-            assert port > 0;
-            this.port = port;
-        }
-
-        private String getServer() {
-            return server.get(random.nextInt(server.size()));
-        }
-
-        public NodeProbe createProbe() throws IOException {
-            return hasCredentials() ? new NodeProbe(getServer(), port, username, password)
-                    : new NodeProbe(getServer(), port);
-
-        }
-
-        public boolean isValid( boolean sslFlag ) {
-            Predicate<String> connectionFilter = new Predicate<String>() {
-
-                private static final String fmtUrl = "service:jmx:rmi:///jndi/rmi://[%s]:%d/jmxrmi";
-
-                private RMIClientSocketFactory getRMIClientSocketFactory()
-                {
-                    if (sslFlag)
-                        return new SslRMIClientSocketFactory();
-                    else
-                        return RMISocketFactory.getDefaultSocketFactory();
-                }
-
-                @Override
-                public boolean test(String host) {
-                    try {
-                    JMXServiceURL jmxUrl = new JMXServiceURL(String.format(fmtUrl, host, port));
-                    Map<String, Object> env = new HashMap<String, Object>();
-                    if (username != null)
-                    {
-                        String[] creds = { username, password };
-                        env.put(JMXConnector.CREDENTIALS, creds);
-                    }
-
-                    env.put("com.sun.jndi.rmi.factory.socket", getRMIClientSocketFactory());
-
-                    try( JMXConnector connection = JMXConnectorFactory.connect(jmxUrl, env) )
-                    {
-                    return true;
-                    } catch (IOException e) {
-                        return false;
-                    }
-                    } catch (MalformedURLException e) {
-                        return false;
-                    }
-                }};
-
-            server = server.stream().filter( connectionFilter ).collect( Collectors.toList());
-            return !server.isEmpty();
-        }
-    }
 
     /*
      * A thrift serializer
@@ -248,7 +140,7 @@ public class CassandraConnection implements Closeable {
     /* Cassandra Session. */
     private final Map<String, Session> sessions;
 
-    private final NodeProbeConfig nodeProbeConfig;
+    private final CassandraJMXConnection.Factory jmxFactory;
 
     /**
      * Build the table ID from the graph name and the triple pattern.
@@ -272,10 +164,10 @@ public class CassandraConnection implements Closeable {
      * @param cluster the cassandra cluster to use.
      * @throws TTransportException
      */
-    public CassandraConnection(Cluster cluster, NodeProbeConfig nodeProbeConfig) throws TTransportException {
+    public CassandraConnection(Cluster cluster, CassandraJMXConnection.Factory jmxFactory) throws TTransportException {
         this.cluster = cluster;
         this.sessions = Collections.synchronizedMap(new HashMap<String, Session>());
-        this.nodeProbeConfig = nodeProbeConfig;
+        this.jmxFactory = jmxFactory;
         ser = new TSerializer();
     }
 
@@ -473,12 +365,10 @@ public class CassandraConnection implements Closeable {
         // All tables have the same size. They are just different organizations of the
         // same data.
         long result = -1;
-        if (nodeProbeConfig != null && graph.equals( Node.ANY )) {
-            try (NodeProbe probe = nodeProbeConfig.createProbe()) {
-                Object estimatedPartitionCount = probe.getColumnFamilyMetric(keyspace, COUNT_TABLE.getName(),
-                        "EstimatedPartitionCount");
-                // may return -1 for error
-                result = ((Long) estimatedPartitionCount).longValue();
+        if (jmxFactory != null && graph.equals( Node.ANY )) {
+
+            try (CassandraJMXConnection jmxConnection = jmxFactory.getConnection()) {
+                result = jmxConnection.getEstimatedSize(keyspace, COUNT_TABLE.getName());
             } catch (IOException e) {
                 LOG.error( "Can not connect to JMX server", e );
             }

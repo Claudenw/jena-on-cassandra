@@ -41,168 +41,168 @@ import org.apache.thrift.TException;
  */
 public class GraphCassandra extends GraphBase {
 
-	/*
-	 * The name of the graph, or Node.ANY for union graph.
-	 */
-	private Node graph;
-	/*
-	 * The Cassandra connection
-	 */
-	private CassandraConnection connection;
-	/*
-	 * The graph capabilities.
-	 */
-	private Capabilities capabilities;
-	/*
-	 * The Cassandra keyspace that the tables are in.
-	 */
-	private final String keyspace;
+    /*
+     * The name of the graph, or Node.ANY for union graph.
+     */
+    private Node graph;
+    /*
+     * The Cassandra connection
+     */
+    private CassandraConnection connection;
+    /*
+     * The graph capabilities.
+     */
+    private Capabilities capabilities;
+    /*
+     * The Cassandra keyspace that the tables are in.
+     */
+    private final String keyspace;
 
-	private static final Log LOG = LogFactory.getLog(GraphCassandra.class);
+    private static final Log LOG = LogFactory.getLog(GraphCassandra.class);
 
-	/**
-	 * Constructor.
-	 *
-	 * <ul>
-	 * <li>A null graph name is considered as the default graph. e.g. urn:x-arq:DefaultGraph</li>
-	 * <li>Node.ANY graph name is condiderd as the Union graph. e.g. urn:x-arq:UnionGraph</li>
-	 * </ul>
-	 *
-	 * @param graph
-	 *            The name of the graph.
-	 * @param keyspace
-	 *            The keyspace to used.
-	 * @param connection
-	 *            The cassandra connection.
-	 */
-	public GraphCassandra(Node graph, String keyspace, CassandraConnection connection) {
-		if (connection == null) {
-			throw new IllegalArgumentException("Connection may not be null");
-		}
-		if (StringUtils.isBlank(keyspace)) {
-			throw new IllegalArgumentException("Keyspace may not be null");
-		}
-		this.graph = graph == null ? Quad.defaultGraphIRI : (Quad.isUnionGraph(graph) ? Node.ANY : graph);
-		this.connection = connection;
-		this.keyspace = keyspace;
-	}
+    /**
+     * Constructor.
+     *
+     * <ul>
+     * <li>A null graph name is considered as the default graph. e.g. urn:x-arq:DefaultGraph</li>
+     * <li>Node.ANY graph name is condiderd as the Union graph. e.g. urn:x-arq:UnionGraph</li>
+     * </ul>
+     *
+     * @param graph
+     *            The name of the graph.
+     * @param keyspace
+     *            The keyspace to used.
+     * @param connection
+     *            The cassandra connection.
+     */
+    public GraphCassandra(Node graph, String keyspace, CassandraConnection connection) {
+        if (connection == null) {
+            throw new IllegalArgumentException("Connection may not be null");
+        }
+        if (StringUtils.isBlank(keyspace)) {
+            throw new IllegalArgumentException("Keyspace may not be null");
+        }
+        this.graph = graph == null ? Quad.defaultGraphIRI : (Quad.isUnionGraph(graph) ? Node.ANY : graph);
+        this.connection = connection;
+        this.keyspace = keyspace;
+    }
 
-	/**
-	 * Constructor. Creates Union graph.
-	 *
-	 * @param keyspace
-	 *            The keyspace to used.
-	 * @param connection
-	 *            The cassandra connection.
-	 */
-	public GraphCassandra(String keyspace, CassandraConnection connection) {
-		this(null, keyspace, connection);
-	}
+    /**
+     * Constructor. Creates Union graph.
+     *
+     * @param keyspace
+     *            The keyspace to used.
+     * @param connection
+     *            The cassandra connection.
+     */
+    public GraphCassandra(String keyspace, CassandraConnection connection) {
+        this(null, keyspace, connection);
+    }
 
-	/**
-	 * Get the graph name. May be Node.ANY
-	 *
-	 * @return The graph name.
-	 */
-	public Node getGraphName() {
-		return graph;
-	}
+    /**
+     * Get the graph name. May be Node.ANY
+     *
+     * @return The graph name.
+     */
+    public Node getGraphName() {
+        return graph;
+    }
 
-	@Override
-	public void performAdd(Triple t) {
+    @Override
+    public void performAdd(Triple t) {
 
-		QueryPattern pattern = new QueryPattern(connection, graph, t);
-		try {
-			pattern.doInsert(keyspace);
-		} catch (TException e) {
-			LOG.error("bad values", e);
-		} catch (InterruptedException e) {
-			LOG.error("Insert interrupted", e);
-		} catch (ExecutionException e) {
-			LOG.error("Insert error", e);
-		}
-	}
+        QueryPattern pattern = new QueryPattern(connection, graph, t);
+        try {
+            pattern.doInsert(keyspace);
+        } catch (TException e) {
+            LOG.error("bad values", e);
+        } catch (InterruptedException e) {
+            LOG.error("Insert interrupted", e);
+        } catch (ExecutionException e) {
+            LOG.error("Insert error", e);
+        }
+    }
 
-	@Override
-	public void performDelete(Triple t) {
+    @Override
+    public void performDelete(Triple t) {
 
-		// do not delete any triple with a wild card.
-		if (t.getMatchSubject() == null || t.getMatchPredicate() == null ||
-				t.getMatchObject() == null)
-		{
-			return;
-		}
+        // do not delete any triple with a wild card.
+        if (t.getMatchSubject() == null || t.getMatchPredicate() == null ||
+                t.getMatchObject() == null)
+        {
+            return;
+        }
 
-		QueryPattern pattern = new QueryPattern(connection, graph, t);
-		pattern.doDelete(keyspace);
+        QueryPattern pattern = new QueryPattern(connection, graph, t);
+        pattern.doDelete(keyspace);
 
-	}
+    }
 
-	@Override
-	public void remove(Node s, Node p, Node o)
-	{
-		if (Quad.isDefaultGraph(graph)) {
-			throw new AddDeniedException("Can not delete from default graph named " + graph);
-		}
-		QueryPattern pattern = new QueryPattern(connection, graph, Triple.createMatch(s, p, o));
-		pattern.doDelete(keyspace);
-		getEventManager().notifyEvent(this, GraphEvents.remove(s, p, o) ) ;
-	}
+    @Override
+    public void remove(Node s, Node p, Node o)
+    {
+        if (Quad.isDefaultGraph(graph)) {
+            throw new AddDeniedException("Can not delete from default graph named " + graph);
+        }
+        QueryPattern pattern = new QueryPattern(connection, graph, Triple.createMatch(s, p, o));
+        pattern.doDelete(keyspace);
+        getEventManager().notifyEvent(this, GraphEvents.remove(s, p, o) ) ;
+    }
 
-	@Override
-	public void clear() {
-		QueryPattern pattern = new QueryPattern( connection, graph, Triple.ANY );
-		pattern.doDelete( keyspace );
-		getEventManager().notifyEvent(this, GraphEvents.removeAll);
-	}
+    @Override
+    public void clear() {
+        QueryPattern pattern = new QueryPattern( connection, graph, Triple.ANY );
+        pattern.doDelete( keyspace );
+        getEventManager().notifyEvent(this, GraphEvents.removeAll);
+    }
 
-	@Override
-	public boolean isClosed() {
-		return super.isClosed() || connection.getSession(keyspace).isClosed();
-	}
+    @Override
+    public boolean isClosed() {
+        return super.isClosed() || connection.getSession(keyspace).isClosed();
+    }
 
-	@Override
-	public Capabilities getCapabilities() {
-		if (capabilities == null)
-			capabilities = new AllCapabilities() {
-				// TODO change graphBaseSize() use JMX.
-			};
-		return capabilities;
-	}
+    @Override
+    public Capabilities getCapabilities() {
+        if (capabilities == null)
+            capabilities = new AllCapabilities() {
+            // TODO change graphBaseSize() use JMX.
+        };
+        return capabilities;
+    }
 
-	@Override
-	public boolean isEmpty() {
-		QueryPattern pattern = new QueryPattern(connection, graph, Triple.ANY);
-		return !pattern.doContains(keyspace);
-	}
+    @Override
+    public boolean isEmpty() {
+        QueryPattern pattern = new QueryPattern(connection, graph, Triple.ANY);
+        return !pattern.doContains(keyspace);
+    }
 
-	@Override
-	protected int graphBaseSize() {
-	    long retval = connection.estimateTableSize(keyspace, graph);
-	    return retval > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int)retval;
-	}
+    @Override
+    protected int graphBaseSize() {
+        long retval = connection.estimateTableSize(keyspace, graph);
+        return retval > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int)retval;
+    }
 
-	@Override
-	protected boolean graphBaseContains(Triple t) {
-		QueryPattern pattern = new QueryPattern(connection, graph, t);
-		return pattern.doContains(keyspace);
-	}
+    @Override
+    protected boolean graphBaseContains(Triple t) {
+        QueryPattern pattern = new QueryPattern(connection, graph, t);
+        return pattern.doContains(keyspace);
+    }
 
-	@Override
-	protected ExtendedIterator<Triple> graphBaseFind(Triple triplePattern) {
-		QueryPattern pattern = new QueryPattern(connection, graph, triplePattern);
-		return pattern.doFind(keyspace).mapWith(new QuadToTriple());
-	}
+    @Override
+    protected ExtendedIterator<Triple> graphBaseFind(Triple triplePattern) {
+        QueryPattern pattern = new QueryPattern(connection, graph, triplePattern);
+        return pattern.doFind(keyspace).mapWith(new QuadToTriple());
+    }
 
-	/**
-	 * Function to convert quads to triples.
-	 *
-	 */
-	private class QuadToTriple implements Function<Quad, Triple> {
-		@Override
-		public Triple apply(Quad t) {
-			return t.asTriple();
-		}
-	}
+    /**
+     * Function to convert quads to triples.
+     *
+     */
+    private class QuadToTriple implements Function<Quad, Triple> {
+        @Override
+        public Triple apply(Quad t) {
+            return t.asTriple();
+        }
+    }
 
 }
