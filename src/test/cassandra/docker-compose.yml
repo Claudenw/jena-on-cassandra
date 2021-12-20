@@ -1,0 +1,13 @@
+version: "3.3"
+services:
+  cassandra-one:
+    image: cassandra
+    ports:
+      - "9042:9042"
+    volumes:
+      - ./data:/var/lib/cassandra/data/
+      - ./logs:/opt/cassandra/logs/
+    environment:
+      MAX_HEAP_SIZE: "128M"
+      MIN_HEAP_SIZE: "128M"
+      HEAP_NEWSIZE: "24M"
