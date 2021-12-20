@@ -24,6 +24,7 @@ import static org.apache.jena.sparql.util.graph.GraphUtils.getStringValue;
 import org.apache.jena.assembler.Assembler;
 import org.apache.jena.assembler.Mode;
 import org.apache.jena.assembler.assemblers.AssemblerBase;
+import org.apache.jena.assembler.exceptions.AssemblerException;
 import org.apache.jena.cassandra.graph.CassandraConnection;
 import org.apache.jena.cassandra.graph.GraphCassandra;
 import org.apache.jena.cassandra.graph.CassandraJMXConnection.Factory;
@@ -64,9 +65,10 @@ public class CassandraModelAssembler extends AssemblerBase implements Assembler 
 
         Cluster cluster = CassandraClusterAssembler.getCluster(root, clusterName);
         Factory jmxFactory = CassandraJMXFactoryAssembler.getFactory(root, clusterName );
+        int threadCount = CassandraClusterAssembler.getThreadCount(root, clusterName );
 
         try {
-            CassandraConnection connection = new CassandraConnection(cluster, jmxFactory);
+            CassandraConnection connection = new CassandraConnection(threadCount, cluster, jmxFactory);
 
             Graph g = new GraphCassandra((graphName == null ? null : graphName.asNode()), keyspace, connection);
             return ModelFactory.createModelForGraph(g);

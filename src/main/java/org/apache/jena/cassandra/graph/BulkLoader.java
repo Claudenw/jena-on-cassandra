@@ -19,9 +19,8 @@ package org.apache.jena.cassandra.graph;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.Future;
+import java.util.function.Predicate;
 
 import org.apache.jena.assembler.Assembler;
 import org.apache.jena.cassandra.assembler.CassandraJMXFactoryAssembler;
@@ -191,9 +190,9 @@ public class BulkLoader {
         Cluster cluster = (Cluster) Assembler.general.open(cfg);
         CassandraJMXFactoryAssembler nodeProbeAssembler = new CassandraJMXFactoryAssembler();
         Factory jmxFactory = (Factory) nodeProbeAssembler.open(cfg);
-
-        CassandraConnection connection = new CassandraConnection(cluster, jmxFactory);
+        CassandraConnection connection = new CassandraConnection(5, cluster, jmxFactory);
         execute(connection, keyspace, urls);
+        connection.close();
     }
 
     private static Resource getProperty(Resource cfg, Property prop ) {
@@ -225,24 +224,33 @@ public class BulkLoader {
      *            The urls to load.
      */
     public static void execute(CassandraConnection connection, final String keyspace, List<String> urls) {
-        ExecutorService executor = Executors.newFixedThreadPool(Math.min(4, urls.size()));
-
+        List<Future<?>> lst = new ArrayList<>();
         for (String uri : urls) {
-            executor.execute(new Runnable() {
+            Runnable runnable = new Runnable() {
 
                 @Override
                 public void run() {
                     StreamRDFCassandra sink = new StreamRDFCassandra(connection, keyspace);
                     RDFDataMgr.parse(sink, uri);
                 }
-            });
+            };
+            lst.add( connection.execute( runnable ) );
         }
 
-        executor.shutdown();
-        try {
-            executor.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS);
-        } catch (InterruptedException e) {
-            e.printStackTrace();
+        Predicate<List<Future<?>>> done = new Predicate<List<Future<?>>>() {
+
+            @Override
+            public boolean test(List<Future<?>> arg0) {
+                for (Future<?> f : arg0) {
+                    if (!f.isDone()) {
+                        return false;
+                    }
+                }
+                return true;
+            }
+        };
+        while (!done.test(lst)) {
+            Thread.yield();
         }
 
     }

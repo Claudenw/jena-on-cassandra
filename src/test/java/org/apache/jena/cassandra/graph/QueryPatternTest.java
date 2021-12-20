@@ -29,6 +29,7 @@ import org.apache.jena.graph.impl.LiteralLabelFactory;
 import org.apache.jena.sparql.core.Quad;
 import org.apache.thrift.TException;
 import org.apache.thrift.transport.TTransportException;
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -103,7 +104,12 @@ public class QueryPatternTest {
 		Cluster cluster = mock(Cluster.class);
 		Session session = mock(Session.class);
 		when(cluster.connect()).thenReturn(session);
-		connection = new CassandraConnection(cluster,null);
+		connection = new CassandraConnection(0, cluster,null);
+	}
+
+	@After
+	public void after() {
+	    connection.close();
 	}
 
 	@Test

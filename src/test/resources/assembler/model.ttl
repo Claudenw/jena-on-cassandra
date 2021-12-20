@@ -23,6 +23,7 @@ ex:cluster 	rdf:type 	joc:Cluster ;
 	joc:name 	"Test Cluster" ;
     joc:address 	"localhost" ;
 	joc:port 	9090 ;
+	joc:threadCount	"6" ;
 	.
 
 # Make a model

@@ -23,7 +23,6 @@
 	joc:name 	"testCluster" ;
     	joc:address 	"localhost" ;
 	joc:port 	9090 ;
-	joc:compression "snappy" ;
 	joc:credentials [ 
 		joc:user "username" ;
 		joc:password "password" 

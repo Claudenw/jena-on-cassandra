@@ -82,12 +82,12 @@ public class CassandraJMXFactoryAssembler extends AssemblerBase implements Assem
 
         Resource jmx = getResourceValue(root, VocabCassandra.jmx);
         if (jmx != null) {
-            CassandraOptionsParser.parseAddress(jmx, config::addContactPoints);
+            CassandraOptionsParser.parseAddress(jmx, config::addContactPoint);
             CassandraOptionsParser.parsePort(jmx, config::withPort);
             CassandraOptionsParser.parseCredentials(jmx, config::withCredentials);
         }
         if (!config.hasContactPoints()) {
-            CassandraOptionsParser.parseAddress(root, config::addContactPoints);
+            CassandraOptionsParser.parseAddress(root, config::addContactPoint);
         }
         if (!config.hasCredentials()) {
             CassandraOptionsParser.parseCredentials(root, config::withCredentials);
@@ -159,7 +159,7 @@ public class CassandraJMXFactoryAssembler extends AssemblerBase implements Assem
         }
 
         Factory npc = new Factory();
-        npc.addContactPoints(contactPoint);
+        npc.addContactPoint(contactPoint);
 
 
         return register(npc, clusterName, withSSL );

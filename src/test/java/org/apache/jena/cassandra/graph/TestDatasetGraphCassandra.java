@@ -22,9 +22,9 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.jena.cassandra.CassandraSetup;
 import org.apache.thrift.transport.TTransportException;
+import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -60,14 +60,19 @@ public class TestDatasetGraphCassandra {
 	}
 
 	@AfterClass
-	public static void after() {
+	public static void afterClass() {
 		cassandra.shutdown();
+	}
+
+	@After
+	public void after() {
+	    connection.close();
 	}
 
 	@Before
 	public void setupTestGraphCassandra()
-			throws ConfigurationException, TTransportException, IOException, InterruptedException {
-		connection = new CassandraConnection(cassandra.getCluster(), cassandra.getNodeProbeConfig());
+			throws TTransportException, IOException, InterruptedException {
+		connection = new CassandraConnection(5,cassandra.getCluster(), cassandra.getJMXFactory());
 		connection.createKeyspace(String.format(
 				"CREATE KEYSPACE IF NOT EXISTS %s WITH REPLICATION = { 'class' : 'SimpleStrategy', 'replication_factor' : 1 }",
 				KEYSPACE));
@@ -90,7 +95,7 @@ public class TestDatasetGraphCassandra {
 			if (connection == null) {
 				try {
 					setupTestGraphCassandra();
-				} catch (ConfigurationException | TTransportException | IOException | InterruptedException e) {
+				} catch (TTransportException | IOException | InterruptedException e) {
 					throw new RuntimeException(e);
 				}
 			}

@@ -19,11 +19,17 @@ package org.apache.jena.cassandra.assembler;
 
 import static org.junit.Assert.*;
 
+import java.io.IOException;
 import java.net.URL;
 import java.net.UnknownHostException;
+
+import org.apache.jena.cassandra.CassandraSetup;
 import org.apache.jena.rdf.model.Model;
 import org.apache.jena.rdf.model.ModelFactory;
+import org.apache.thrift.transport.TTransportException;
+import org.junit.AfterClass;
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import com.datastax.driver.core.Cluster;
@@ -38,6 +44,24 @@ public class CassandraClusterAssemblerTest {
 	private CassandraClusterAssembler assembler;
 	private URL url;
 	private Model model;
+	private static CassandraSetup cassandra;
+
+	/**
+     * Set embedded cassandra up and spawn it in a new thread.
+     *
+     * @throws TTransportException
+     * @throws IOException
+     * @throws InterruptedException
+     */
+    @BeforeClass
+    public static void beforeClass() throws Exception, InterruptedException {
+        cassandra = new CassandraSetup();
+    }
+
+    @AfterClass
+    public static void after() {
+        cassandra.shutdown();
+    }
 
 	@Before
 	public void before() {

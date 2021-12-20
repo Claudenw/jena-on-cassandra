@@ -134,7 +134,7 @@ public class GraphCassandra extends GraphBase {
         }
 
         QueryPattern pattern = new QueryPattern(connection, graph, t);
-        pattern.doDelete(keyspace);
+        pattern.doDelete(keyspace).awaitFinish();;
 
     }
 
@@ -145,15 +145,13 @@ public class GraphCassandra extends GraphBase {
             throw new AddDeniedException("Can not delete from default graph named " + graph);
         }
         QueryPattern pattern = new QueryPattern(connection, graph, Triple.createMatch(s, p, o));
-        pattern.doDelete(keyspace);
-        getEventManager().notifyEvent(this, GraphEvents.remove(s, p, o) ) ;
+        pattern.doDelete(keyspace).executeAfter(()-> getEventManager().notifyEvent(this, GraphEvents.remove(s, p, o) ));
     }
 
     @Override
     public void clear() {
         QueryPattern pattern = new QueryPattern( connection, graph, Triple.ANY );
-        pattern.doDelete( keyspace );
-        getEventManager().notifyEvent(this, GraphEvents.removeAll);
+        pattern.doDelete( keyspace ).executeAfter( ()->  getEventManager().notifyEvent(this, GraphEvents.removeAll) );
     }
 
     @Override

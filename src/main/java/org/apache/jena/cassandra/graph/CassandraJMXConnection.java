@@ -167,6 +167,9 @@ public class CassandraJMXConnection implements AutoCloseable {
     }
 
     public static class Factory {
+        public static final boolean SSH=true;
+        public static final boolean NO_SSH=false;
+
         private static final Log LOG = LogFactory.getLog(Factory.class);
         public static int DEFAULT_PORT = 7199;
         private String username;
@@ -175,7 +178,6 @@ public class CassandraJMXConnection implements AutoCloseable {
         private int port = DEFAULT_PORT;
         private boolean useSSH = false;
         private Random random = new Random();
-
 
         public void withCredentials(String username, String password) {
             this.username = username;
@@ -186,7 +188,7 @@ public class CassandraJMXConnection implements AutoCloseable {
             return username != null && !username.isEmpty() && password != null && !password.isEmpty();
         }
 
-        public void addContactPoints(String server) {
+        public void addContactPoint(String server) {
             this.server.add(server);
         }
 
@@ -208,6 +210,9 @@ public class CassandraJMXConnection implements AutoCloseable {
         }
 
         private String getServer() {
+            if (server.isEmpty()) {
+                throw new IllegalStateException( "No contact points provided");
+            }
             return server.get(random.nextInt(server.size()));
         }
 

@@ -67,4 +67,21 @@ public class CassandraOptionsParser {
             consumer.accept(username, password);
         }
     }
+
+    public static int parseThreadCount( Resource root, int dflt ) {
+        if (!atmostOneProperty(root, VocabCassandra.threadCount)) {
+            throw new AssemblerException(root,
+                    String.format("%s may be specified only once.", VocabCassandra.threadCount.getLocalName()));
+        }
+        String value = getStringValue(root, VocabCassandra.threadCount);
+        if (value==null) {
+            return dflt;
+        }
+        try {
+            return Integer.parseInt( value );
+        } catch (NumberFormatException e) {
+            throw new AssemblerException(root,
+                    String.format("%s is not a valid integer.", VocabCassandra.threadCount.getLocalName()),e);
+        }
+    }
 }

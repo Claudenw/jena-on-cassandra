@@ -50,12 +50,18 @@ public class CassandraDatasetAssembler extends AssemblerBase implements Assemble
     public Dataset open(Assembler a, Resource root, Mode mode) {
         String keyspace = getStringValue(root, VocabCassandra.keyspace);
         String clusterName = getStringValue(root, VocabCassandra.useCluster);
+        int threadCount = 0;
+        try {
+            threadCount = Integer.parseInt( getStringValue(root, VocabCassandra.threadCount ));
+        } catch (NumberFormatException e) {
+            throw new IllegalStateException( e );
+        }
 
         Cluster cluster = CassandraClusterAssembler.getCluster(root, clusterName);
         Factory jmxFactory = CassandraJMXFactoryAssembler.getFactory(root, clusterName );
 
         try {
-            CassandraConnection connection = new CassandraConnection(cluster, jmxFactory);
+            CassandraConnection connection = new CassandraConnection(threadCount, cluster, jmxFactory);
             DatasetGraph dsg = new DatasetGraphCassandra(keyspace, connection);
 
             return DatasetImpl.wrap(dsg);

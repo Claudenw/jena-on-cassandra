@@ -28,6 +28,7 @@ public class VocabCassandra {
 
     public static final Resource Cluster = ResourceFactory.createResource(NS + "Cluster");
 
+    public static final Property threadCount = ResourceFactory.createProperty(NS, "threadCount");
     public static final Property contactPoint = ResourceFactory.createProperty(NS, "contact");
     public static final Property address = ResourceFactory.createProperty(NS, "address");
     public static final Property port = ResourceFactory.createProperty(NS, "port");

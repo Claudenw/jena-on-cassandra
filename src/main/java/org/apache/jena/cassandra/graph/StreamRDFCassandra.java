@@ -17,12 +17,18 @@
  */
 package org.apache.jena.cassandra.graph;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.apache.jena.cassandra.graph.BulkExecutor.ExecList;
 import org.apache.jena.graph.Triple;
 import org.apache.jena.riot.system.StreamRDF;
 import org.apache.jena.sparql.core.Quad;
 import org.apache.thrift.TException;
+
+import com.datastax.driver.core.Session;
 
 /**
  * An implementation of StreamRDF that writes to the Cassandra database.
@@ -33,9 +39,10 @@ import org.apache.thrift.TException;
  *
  */
 public class StreamRDFCassandra implements StreamRDF {
-    private CassandraConnection connection;
-    private BulkExecutor bulkExecutor;
-    private Log log;
+    private final CassandraConnection connection;
+    private final String keyspace;
+    private final Log log;
+    private List<ExecList> execs;
 
     /**
      * Constructor.
@@ -47,13 +54,13 @@ public class StreamRDFCassandra implements StreamRDF {
      */
     public StreamRDFCassandra(CassandraConnection connection, String keyspace) {
         this.connection = connection;
-        this.bulkExecutor = new BulkExecutor(connection.getSession(keyspace));
+        this.keyspace = keyspace ;
         this.log = LogFactory.getLog(StreamRDFCassandra.class.getName() + "." + hashCode());
-        this.bulkExecutor.setLog(log);
     }
 
     @Override
     public void start() {
+        execs = new ArrayList<>();
     }
 
     @Override
@@ -65,7 +72,7 @@ public class StreamRDFCassandra implements StreamRDF {
     public void quad(Quad quad) {
         QueryPattern pattern = new QueryPattern(connection, quad);
         try {
-            bulkExecutor.execute(pattern.getInsertStatement());
+            execs.add( connection.executeUpdateSet(log, keyspace, pattern.getInsertStatement()) );
         } catch (TException e) {
             log.error(String.format("Unable to insert %s", quad), e);
         }
@@ -84,7 +91,7 @@ public class StreamRDFCassandra implements StreamRDF {
 
     @Override
     public void finish() {
-        bulkExecutor.awaitFinish();
+        execs.forEach( ExecList::awaitFinish );
     }
 
 }

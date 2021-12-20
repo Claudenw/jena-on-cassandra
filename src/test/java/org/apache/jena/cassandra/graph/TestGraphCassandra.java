@@ -19,13 +19,13 @@
 package org.apache.jena.cassandra.graph;
 
 import java.io.IOException;
-import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.jena.cassandra.CassandraSetup;
 import org.apache.jena.graph.Graph;
 import org.apache.jena.graph.NodeFactory;
 import org.apache.jena.graph.Triple;
 import org.apache.jena.testing_framework.AbstractGraphProducer;
 import org.apache.thrift.transport.TTransportException;
+import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -60,20 +60,27 @@ public class TestGraphCassandra {
 	}
 
 	@AfterClass
-	public static void after() {
+	public static void afterClass() {
 		cassandra.shutdown();
 	}
 
 	@Before
 	public void setupTestGraphCassandra()
-			throws ConfigurationException, TTransportException, IOException, InterruptedException {
-		connection = new CassandraConnection( cassandra.getCluster(), cassandra.getNodeProbeConfig());
+			throws TTransportException, IOException, InterruptedException {
+		connection = new CassandraConnection( 5, cassandra.getCluster(), cassandra.getJMXFactory());
 		connection.createKeyspace(String.format(
 						"CREATE KEYSPACE IF NOT EXISTS %s WITH REPLICATION = { 'class' : 'SimpleStrategy', 'replication_factor' : 1 }",
 						KEYSPACE));
 		//connection.deleteTables(KEYSPACE);
 		connection.createTables(KEYSPACE);
-		connection.truncateTables(KEYSPACE);
+		connection.truncateTables(KEYSPACE).awaitFinish();;
+	}
+
+	@After
+	public void after() {
+        connection.truncateTables(KEYSPACE).awaitFinish();
+
+	    //connection.close();
 	}
 
 	@Inject
@@ -95,7 +102,7 @@ public class TestGraphCassandra {
 			if (connection == null) {
 				try {
 					setupTestGraphCassandra();
-				} catch (ConfigurationException | TTransportException | IOException | InterruptedException e) {
+				} catch (TTransportException | IOException | InterruptedException e) {
 					throw new RuntimeException(e);
 				}
 			}

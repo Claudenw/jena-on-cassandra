@@ -214,7 +214,7 @@ public class DatasetGraphCassandra extends DatasetGraphBase {
     public void deleteAny(Node g, Node s, Node p, Node o) {
         Quad q = new Quad( g, s==null?Node.ANY:s, p==null?Node.ANY:p, o==null?Node.ANY:o );
         QueryPattern pattern = new QueryPattern(connection, q);
-        pattern.doDelete(keyspace);
+        pattern.doDelete(keyspace).awaitFinish();
     }
 
     @Override

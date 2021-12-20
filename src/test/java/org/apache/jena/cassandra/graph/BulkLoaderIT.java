@@ -24,50 +24,56 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.jena.cassandra.CassandraSetup;
 import org.apache.jena.graph.NodeFactory;
 import org.apache.jena.graph.Triple;
 import org.apache.jena.sparql.core.Quad;
 import org.apache.thrift.transport.TTransportException;
+import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-public class BulkLoaderTest {
+public class BulkLoaderIT {
 
 	private CassandraConnection connection;
 	private static final String KEYSPACE = "test";
 	private static CassandraSetup cassandra;
 
-	/**
-	 * Set embedded cassandra up and spawn it in a new thread.
-	 *
-	 * @throws TTransportException
-	 * @throws IOException
-	 * @throws InterruptedException
-	 */
-	@BeforeClass
-	public static void before() throws Exception, InterruptedException {
-		cassandra = new CassandraSetup();
-	}
+    /**
+     * Set embedded cassandra up and spawn it in a new thread.
+     *
+     * @throws TTransportException
+     * @throws IOException
+     * @throws InterruptedException
+     */
+    @BeforeClass
+    public static void beforeClass() throws Exception, InterruptedException {
+        cassandra = new CassandraSetup();
+    }
 
-	@AfterClass
-	public static void after() {
-		cassandra.shutdown();
-	}
+    @AfterClass
+    public static void afterClass() {
+        cassandra.shutdown();
+    }
+
 
 	@Before
 	public void setupTestGraphCassandra()
-			throws ConfigurationException, TTransportException, IOException, InterruptedException {
-		connection = new CassandraConnection(cassandra.getCluster(), cassandra.getNodeProbeConfig());
+			throws TTransportException, IOException, InterruptedException {
+		connection = new CassandraConnection(5, cassandra.getCluster(), cassandra.getJMXFactory());
 		connection.createKeyspace(String.format(
 				"CREATE KEYSPACE IF NOT EXISTS %s WITH REPLICATION = { 'class' : 'SimpleStrategy', 'replication_factor' : 1 }",
 				KEYSPACE));
 
 		connection.createTables(KEYSPACE);
 		connection.truncateTables(KEYSPACE);
+	}
+
+	@After
+	public void after() {
+	    connection.close();
 	}
 
 	private String getURLStr(String fn) {
@@ -90,6 +96,15 @@ public class BulkLoaderTest {
 		urls.add(getURLStr("bulkLoader/model9.n3"));
 		urls.add(getURLStr("bulkLoader/modelA.nt"));
 		BulkLoader.execute(connection, KEYSPACE, urls);
+
+
+		try {
+            Thread.sleep( 2000 );
+        } catch (InterruptedException e) {
+            // TODO Auto-generated catch block
+            e.printStackTrace();
+        } // wait for cluster to catch up.
+
 
 		// <urn:xyz:abc> <http://localhost/p1> "/*Not a comment*/" .
 		Triple first = new Triple(NodeFactory.createURI("urn:xyz:abc"), NodeFactory.createURI("http://localhost/p1"),

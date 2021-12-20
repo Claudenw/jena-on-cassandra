@@ -160,6 +160,17 @@ public class CassandraClusterAssembler extends AssemblerBase implements Assemble
 
     }
 
+
+    public static int getThreadCount(Resource root, String clusterName) {
+        Model model = root.getModel();
+        for (Resource r : model.listResourcesWithProperty(RDF.type, VocabCassandra.Cluster).toList()) {
+            if (r.hasLiteral(VocabCassandra.name, clusterName)) {
+                return CassandraOptionsParser.parseThreadCount(root, 5);
+            }
+        }
+        return 5;
+    }
+
     /**
      * Get a cluster with the specified name.
      *

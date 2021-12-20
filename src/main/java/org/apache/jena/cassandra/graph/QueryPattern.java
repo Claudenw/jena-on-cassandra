@@ -32,6 +32,7 @@ import java.util.function.Predicate;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.apache.jena.cassandra.graph.BulkExecutor.ExecList;
 import org.apache.jena.datatypes.RDFDatatype;
 import org.apache.jena.datatypes.TypeMapper;
 import org.apache.jena.graph.Node;
@@ -429,10 +430,10 @@ public class QueryPattern {
      * @param keyspace
      *            The keyspace to delete from.
      */
-    public void doDelete(String keyspace) {
+    public ExecList doDelete(String keyspace) {
         if (quad.getGraph() == null && Triple.ANY.equals(quad.asTriple()))
         {
-            connection.truncateTables( keyspace );
+            return connection.truncateTables( keyspace );
         }
         else
         {
@@ -448,8 +449,7 @@ public class QueryPattern {
                         return null;
                     }
                 }}).filterDrop( new FindNull<String>());
-            connection.executeUpdateSet(keyspace, statements);
-
+            return connection.executeUpdateSet(LOG, keyspace, statements);
         }
 
     }
@@ -533,7 +533,7 @@ public class QueryPattern {
      * @throws InterruptedException
      */
     public void doInsert(String keyspace) throws TException, InterruptedException, ExecutionException {
-        connection.executeUpdateSet(keyspace, getInsertStatement());
+        connection.executeUpdateSet(LOG, keyspace, getInsertStatement()).awaitFinish();
     }
 
     /**

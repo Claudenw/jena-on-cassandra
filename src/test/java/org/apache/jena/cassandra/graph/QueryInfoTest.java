@@ -29,6 +29,7 @@ import org.apache.jena.graph.impl.LiteralLabelFactory;
 import org.apache.jena.sparql.core.Quad;
 import org.apache.thrift.TException;
 import org.apache.thrift.transport.TTransportException;
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -76,9 +77,10 @@ public class QueryInfoTest {
 		Cluster cluster = mock(Cluster.class);
 		Session session = mock(Session.class);
 		when(cluster.connect()).thenReturn(session);
-		CassandraConnection connection = new CassandraConnection(cluster,null);
+		CassandraConnection connection = new CassandraConnection(0, cluster,null);
 		pattern = new QueryPattern(connection, new Quad(Node.ANY, Triple.ANY));
 	}
+
 
 	private void assertColumnNotFound(ColumnName c, String s) {
 		assertFalse(c + " found in " + s, s.contains(c.toString()));

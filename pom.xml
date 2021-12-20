@@ -34,11 +34,11 @@
 			<version>${jena-version}</version>
 		</dependency>
 
-<!-- 		<dependency> -->
-<!-- 			<groupId>org.apache.cassandra</groupId> -->
-<!-- 			<artifactId>cassandra-all</artifactId> -->
-<!-- 			<version>${cassandra-version}</version> -->
-<!-- 		</dependency> -->
+		<!-- <dependency> -->
+		<!-- <groupId>org.apache.cassandra</groupId> -->
+		<!-- <artifactId>cassandra-all</artifactId> -->
+		<!-- <version>${cassandra-version}</version> -->
+		<!-- </dependency> -->
 
 		<dependency>
 			<groupId>com.datastax.cassandra</groupId>
@@ -54,13 +54,13 @@
 			<groupId>org.slf4j</groupId>
 			<artifactId>slf4j-api</artifactId>
 		</dependency>
-		
+
 		<dependency>
 			<groupId>org.xenei</groupId>
 			<artifactId>junit-contracts</artifactId>
 			<scope>test</scope>
 		</dependency>
-		
+
 		<dependency>
 			<groupId>org.apache.jena</groupId>
 			<artifactId>jena-core</artifactId>
@@ -68,7 +68,7 @@
 			<type>test-jar</type>
 			<scope>test</scope>
 		</dependency>
-		
+
 		<dependency>
 			<groupId>junit</groupId>
 			<artifactId>junit</artifactId>
@@ -199,8 +199,49 @@
 				<artifactId>maven-bundle-plugin</artifactId>
 			</plugin>
 
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-failsafe-plugin</artifactId>
+				<executions>
+					<execution>
+						<goals>
+							<goal>integration-test</goal>
+							<goal>verify</goal>
+						</goals>
+					</execution>
+				</executions>
+			</plugin>
+			<plugin>
+					<groupId>io.fabric8</groupId>
+					<artifactId>docker-maven-plugin</artifactId>
+					<executions>
+					<execution>
+						<id>docker-start</id>
+						<phase>pre-integration-test</phase>
+						<goals>
+						<goal>start</goal></goals>
+						<configuration>
+							<images>
+								<image>library/cassandra:${cassandra-version}</image>
+							</images>
+						</configuration>
+					</execution>
+					<execution>
+						<id>docker-stop</id>
+						<phase>post-integration-test</phase>
+						<goals>
+						<goal>start</goal></goals>
+						<configuration>
+							<images>
+								<image>library/cassandra:${cassandra-version}</image>
+							</images>
+						</configuration>
+					</execution>
+					</executions>
+				</plugin>
+
 		</plugins>
-				<pluginManagement>
+		<pluginManagement>
 			<plugins>
 				<plugin>
 					<groupId>org.apache.maven.plugins</groupId>
@@ -233,21 +274,26 @@
 					<version>0.38.0</version>
 				</plugin>
 				<plugin>
-				<groupId>org.apache.maven.plugins</groupId>
-				<artifactId>maven-enforcer-plugin</artifactId>
-				<version>3.0.0</version>
-			</plugin>
+					<groupId>org.apache.maven.plugins</groupId>
+					<artifactId>maven-enforcer-plugin</artifactId>
+					<version>3.0.0</version>
+				</plugin>
 
-			<plugin>
-				<groupId>org.apache.felix</groupId>
-				<artifactId>maven-bundle-plugin</artifactId>
-				<version>5.1.2</version>
-				<extensions>true</extensions>
-			</plugin>
-				
+				<plugin>
+					<groupId>org.apache.felix</groupId>
+					<artifactId>maven-bundle-plugin</artifactId>
+					<version>5.1.2</version>
+					<extensions>true</extensions>
+				</plugin>
+
+				<plugin>
+					<groupId>org.apache.maven.plugins</groupId>
+					<artifactId>maven-failsafe-plugin</artifactId>
+					<version>3.0.0-M5</version>
+				</plugin>
 			</plugins>
 		</pluginManagement>
-		
+
 	</build>
 	<dependencyManagement>
 		<dependencies>
@@ -259,12 +305,12 @@
 				<scope>import</scope>
 			</dependency>
 
-<dependency>
-    <groupId>org.apache.cassandra</groupId>
-    <artifactId>cassandra-parent</artifactId>
-    <version>${cassandra-version}</version>
-    <type>pom</type>
-</dependency>
+			<dependency>
+				<groupId>org.apache.cassandra</groupId>
+				<artifactId>cassandra-parent</artifactId>
+				<version>${cassandra-version}</version>
+				<type>pom</type>
+			</dependency>
 		</dependencies>
 	</dependencyManagement>
 	<properties>

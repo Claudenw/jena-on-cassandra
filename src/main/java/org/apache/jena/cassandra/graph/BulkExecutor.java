@@ -17,13 +17,20 @@
  */
 package org.apache.jena.cassandra.graph;
 
+import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.apache.jena.cassandra.assembler.CassandraClusterAssembler;
 
 import com.datastax.driver.core.ResultSetFuture;
 import com.datastax.driver.core.Session;
@@ -34,24 +41,22 @@ import com.datastax.driver.core.Session;
  */
 public class BulkExecutor {
 
-    private Log log;
-
     /*
      * the Cassandra session to use.
      */
-    private Session session;
+    // private Session session;
 
     /*
-     * this is a map of all ResultSetFutures and the Runnables that are
-     * registered as their listener. when the future completes the runnable
-     * removes the future from the map.
+     * this is a map of all ResultSetFutures and the Runnables that are registered
+     * as their listener. when the future completes the runnable removes the future
+     * from the map.
      */
-    private ConcurrentHashMap<Runnable, ResultSetFuture> map = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<Runnable, ResultSetFuture> map;
 
     /*
-     * The service that executest the runnables.
+     * The service that executes the runnables.
      */
-    private ExecutorService executor = Executors.newSingleThreadExecutor();
+    private final ExecutorService executor;
 
     /**
      * Constructor.
@@ -59,20 +64,9 @@ public class BulkExecutor {
      * @param session
      *            The Cassandra session to use.
      */
-    public BulkExecutor(Session session) {
-        this.session = session;
-        this.log = LogFactory.getLog(BulkExecutor.class.getName() + "." + hashCode());
-    }
-
-    /**
-     * Set the logging. Used when another class uses the bulk executor and wants
-     * to capture the logging.
-     *
-     * @param log
-     *            The log for this BulkExecutor to log to.
-     */
-    public void setLog(Log log) {
-        this.log = log;
+    public BulkExecutor(int threadCount) {
+        this.executor = Executors.newFixedThreadPool(threadCount);
+        this.map = new ConcurrentHashMap<>();
     }
 
     /**
@@ -89,78 +83,106 @@ public class BulkExecutor {
      * @param statements
      *            An iterator of statements to execute.
      */
-    public void execute(Iterator<String> statements) {
+    public ExecList execute(Log log, Session session, Iterator<String> statements) {
+        List<ResultSetFuture> lst = new ArrayList<ResultSetFuture>();
         while (statements.hasNext()) {
             String statement = statements.next();
 
-            /*
-             * runner runs when future is complete. It simply removes the future
-             * from the map to show that it is complete.
-             */
-            Runnable runner = new Runnable() {
-                @Override
-                public void run() {
-                    if (log.isDebugEnabled()) {
-                        log.debug("finished executing statement: " + statement);
-                    }
-                    map.remove(this);
-                }
-            };
-            if (log.isDebugEnabled()) {
-                log.debug("executing statement: " + statement);
-            }
-            ResultSetFuture rsf = session.executeAsync(statement);
-            /*
-             * the map keeps a reference to the ResultSetFuture so we can track
-             * when all futures have executed
-             */
-            map.put(runner, rsf);
-            // the ResultSetFuture will execute the runner on the executor.
-            rsf.addListener(runner, executor);
+            lst.add(session.executeAsync(statement));
         }
+        return new ExecList(lst);
     }
 
-    /**
-     * Wait for the executor to complete all executions.
-     */
-    public void awaitFinish() {
-        /* if the map is not empty we need to wait until it is */
-        if (!map.isEmpty()) {
-            /*
-             * this runnable will check the map and if it is empty notify this
-             * (calling) thread so it can continue. Otherwise it places itself
-             * back on the executor queue again.
-             */
-            Runnable r = new Runnable() {
+    public Future<?> execute( Runnable r ) {
+        return executor.submit(r);
+    }
+
+    public void shutdown() {
+        executor.shutdown();
+    }
+
+    public class ExecList implements Future<List<ResultSetFuture>> {
+        private List<ResultSetFuture> lst;
+
+        ExecList(List<ResultSetFuture> lst) {
+            this.lst = lst;
+        }
+
+        @Override
+        public boolean cancel(boolean mayInterruptIfRunning) {
+            boolean flg = false;
+            for (ResultSetFuture rsf : lst) {
+                if (!rsf.isDone()) {
+                    rsf.cancel(mayInterruptIfRunning);
+                    flg = true;
+                }
+            }
+            return flg;
+        }
+
+        @Override
+        public List<ResultSetFuture> get() throws InterruptedException, ExecutionException {
+            return lst;
+        }
+
+        @Override
+        public List<ResultSetFuture> get(long arg0, TimeUnit arg1)
+                throws InterruptedException, ExecutionException, TimeoutException {
+            return lst;
+        }
+
+        @Override
+        public boolean isCancelled() {
+            for (ResultSetFuture rsf : lst) {
+                if (!rsf.isCancelled()) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        @Override
+        public boolean isDone() {
+            for (ResultSetFuture rsf : lst) {
+                if (!rsf.isDone()) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        public void awaitFinish() {
+            class X implements Runnable {
+
+                public int remaining=lst.size();
+
                 @Override
                 public void run() {
-                    synchronized (this) {
-                        if (map.isEmpty()) {
-                            notify();
-                        } else {
-                            if (log.isDebugEnabled()) {
-                                log.debug("Requeueing for finish");
-                            }
-                            executor.execute(this);
+                    remaining--;
+                    if (remaining <= 0) {
+                        synchronized(this) {
+                            this.notify();
                         }
                     }
                 }
             };
-            synchronized (r) {
-                try {
-                    /*
-                     * place the runnable on the executor thread and then wait
-                     * to be notified. We will be notified when all the
-                     * statements have been executed
-                     */
-                    executor.execute(r);
-                    r.wait();
-                } catch (InterruptedException e) {
-                    log.error("Interrupted waiting for map to clear", e);
+
+            X counter = new X();
+            lst.forEach( f -> f.addListener( counter , executor));
+            try {
+                synchronized( counter ) {
+                    counter.wait(1000);
                 }
+            } catch (InterruptedException e) {
+                LogFactory.getLog( this.getClass() ).warn( e );
             }
         }
-        executor.shutdown();
-    }
 
+        public void executeAfter(Runnable r) {
+
+            awaitFinish();
+
+            r.run();
+        }
+    }
 }

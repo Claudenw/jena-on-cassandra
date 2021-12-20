@@ -25,10 +25,13 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Future;
 import java.util.function.Function;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.apache.jena.cassandra.graph.BulkExecutor.ExecList;
 import org.apache.jena.graph.Node;
 import org.apache.jena.graph.Triple;
 import org.apache.jena.riot.thrift.ThriftConvert;
@@ -142,6 +145,8 @@ public class CassandraConnection implements Closeable {
 
     private final CassandraJMXConnection.Factory jmxFactory;
 
+    private final BulkExecutor bulkExecutor;
+
     /**
      * Build the table ID from the graph name and the triple pattern.
      *
@@ -164,15 +169,19 @@ public class CassandraConnection implements Closeable {
      * @param cluster the cassandra cluster to use.
      * @throws TTransportException
      */
-    public CassandraConnection(Cluster cluster, CassandraJMXConnection.Factory jmxFactory) throws TTransportException {
+    public CassandraConnection(int threadCount, Cluster cluster, CassandraJMXConnection.Factory jmxFactory) throws TTransportException {
         this.cluster = cluster;
         this.sessions = Collections.synchronizedMap(new HashMap<String, Session>());
         this.jmxFactory = jmxFactory;
+        this.bulkExecutor = threadCount==0?null:new BulkExecutor(threadCount);
         ser = new TSerializer();
     }
 
     @Override
     public void close() {
+        if (bulkExecutor != null) {
+            bulkExecutor.shutdown();
+        }
         synchronized (sessions) {
             for (Session session : sessions.values()) {
                 session.close();
@@ -186,12 +195,8 @@ public class CassandraConnection implements Closeable {
      * @param createStmt the statement to execute.
      */
     public void createKeyspace(String createStmt) {
-        Session session = null;
-        try{
-            session = cluster.connect();
+        try(Session session = cluster.connect()){
             session.execute( createStmt );
-        } finally {
-            session.close();
         }
     }
 
@@ -233,7 +238,7 @@ public class CassandraConnection implements Closeable {
                 iter = iter.andThen(tbl.getDeleteTableStatements());
             }
         }
-        executeUpdateSet(keyspace, iter);
+        executeUpdateSet(LOG, keyspace, iter).awaitFinish();
     }
 
     /**
@@ -258,8 +263,9 @@ public class CassandraConnection implements Closeable {
      *
      * @param keyspace
      *            The keyspace to delete from.
+     * @return
      */
-    public void truncateTables(String keyspace) {
+    public ExecList truncateTables(String keyspace) {
 
         Iterator<String> statements = CassandraConnection.getTableList().stream()
                 .map(new Function<TableName, String>() {
@@ -268,7 +274,7 @@ public class CassandraConnection implements Closeable {
                         return String.format("TRUNCATE %s ;", t.getName());
                     }
                 }).iterator();
-        executeUpdateSet(keyspace, statements);
+        return executeUpdateSet(LOG, keyspace, statements);
     }
 
     /**
@@ -281,10 +287,8 @@ public class CassandraConnection implements Closeable {
      * @param keyspace The keyspace to execute the commands in.
      * @param statements An iterator of queries to execute.
      */
-    public void executeUpdateSet(String keyspace, Iterator<String> statements) {
-        BulkExecutor bulkExecutor = new BulkExecutor(getSession(keyspace));
-        bulkExecutor.execute(statements);
-        bulkExecutor.awaitFinish();
+    public ExecList executeUpdateSet(Log log, String keyspace, Iterator<String> statements) {
+        return bulkExecutor.execute(log, getSession(keyspace), statements);
     }
 
     /**
@@ -320,23 +324,26 @@ public class CassandraConnection implements Closeable {
         }
     }
 
-    /**
-     * Execute a single update statement (no data returned).  Logging is performed as appropriate.
-     * @param keyspace The keyspace to execute in.
-     * @param statement the statement to execute.
-     * @return ResultSetFuture
-     */
-    public ResultSetFuture executeUpdate(String keyspace, String statement) {
-        if (LOG.isDebugEnabled()) {
-            LOG.debug("executing query: " + statement);
-        }
-        try {
-            return getSession(keyspace).executeAsync(statement);
-        } catch (QueryValidationException e) {
-            LOG.error(String.format("Query Execution issue (%s) while executing: (%s)", e.getMessage(), statement), e);
-            throw e;
-        }
+    public Future<?> execute(Runnable r ) {
+        return bulkExecutor.execute( r );
     }
+//    /**
+//     * Execute a single update statement (no data returned).  Logging is performed as appropriate.
+//     * @param keyspace The keyspace to execute in.
+//     * @param statement the statement to execute.
+//     * @return ResultSetFuture
+//     */
+//    public ResultSetFuture executeUpdate(String keyspace, String statement) {
+//        if (LOG.isDebugEnabled()) {
+//            LOG.debug("executing query: " + statement);
+//        }
+//        try {
+//            return getSession(keyspace).executeAsync(statement);
+//        } catch (QueryValidationException e) {
+//            LOG.error(String.format("Query Execution issue (%s) while executing: (%s)", e.getMessage(), statement), e);
+//            throw e;
+//        }
+//    }
 
     /**
      * Return the serialized value of the node.
